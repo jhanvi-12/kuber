@@ -1,9 +1,10 @@
 """This module is responsible to contain API's endpoint"""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, UploadFile, File, Form
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from typing import Optional
+from core.utils import constant_variable as constant
 from apps.v1.api.auth import schema
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.auth.services.login_service import LoginService
@@ -13,6 +14,7 @@ from apps.v1.api.auth.services.user_profile_service import UserProfileService
 from apps.v1.api.auth.services.verify_otp_service import VerifyOtpService
 from apps.v1.api.pagination_service import oauth2
 from config import db_config
+from pydantic import EmailStr
 from core.utils.token_authentication import JWTOAuth2
 
 ## Load API's
@@ -23,8 +25,13 @@ getdb = db_config.get_db
 @authrouter.post("/register")
 async def create_admin_api(
     request: Request,
-    body: schema.CreateRegisterSchema,
-    user_type: attribute.UserTypeEnum,
+    full_name: str = Form(...),
+    email: EmailStr = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    mobile: str = Form(...),
+    user_type: attribute.UserTypeEnum = Form(...),
+    profile_image: UploadFile = File(None),
     db: AsyncSession = Depends(getdb),
 ):
     """
@@ -37,7 +44,17 @@ async def create_admin_api(
     Returns:
         StandardResponse: The response object with status and message.
     """
-    response = await SignUpService().create_signup_service(request, db, user_type, body)
+    body = {
+        "full_name": full_name,
+        "email": email,
+        "password": password,
+        "confirm_password": confirm_password,
+        "mobile": mobile,
+        "user_type": user_type,
+    }
+    response = await SignUpService().create_signup_service(
+        request, db, user_type, body, profile_image
+    )
     return response
 
 
@@ -96,7 +113,8 @@ async def forgot_password_api(
 
 @authrouter.post("/reset/password")
 async def reset_password_api(
-    body: schema.ResetPasswordSchema, db: AsyncSession = Depends(getdb)
+    body: schema.ResetPasswordSchema, db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
     """Reset password for user.
 
@@ -104,7 +122,8 @@ async def reset_password_api(
         body (schema.ResetPasswordSchema): The body containing reset password schema.
         db (AsyncSession, optional): database session Defaults to Depends(getdb).
     """
-    response = await ResetPasswordService().get_reset_password_service(db, body)
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await ResetPasswordService().get_reset_password_service(db, body, current_user)
     return response
 
 
@@ -132,7 +151,7 @@ async def get_user_profile_api(
     User profile API
     Args:
         db (AsyncSession, optional): database session Defaults to Depends(getdb).
-        authorize (HTTPAuthorizationCredentials, optional): The authorization header 
+        authorize (HTTPAuthorizationCredentials, optional): The authorization header
         containing JWT token. Defaults to Depends(oauth2).
     Returns:
         StandardResponse: The response object with status and message.
@@ -141,10 +160,13 @@ async def get_user_profile_api(
     response = await UserProfileService().get_user_profile_service(db, current_user)
     return response
 
+
 @authrouter.put("/user/edit/profile")
 async def get_edit_user_profile_api(
     request: Request,
-    body: schema.EditProfileSchema,
+    full_name: Optional[str] = Form(None),
+    email: Optional[EmailStr] = Form(None),
+    profile_image: Optional[UploadFile] = File(None),
     authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
     db: AsyncSession = Depends(getdb),
 ):
@@ -157,8 +179,36 @@ async def get_edit_user_profile_api(
     Returns:
         StandardResponse: The response object with status and message.
     """
-    current_user = JWTOAuth2().verify_access_token(authrouter.credentials)
+    current_user = request.state.user_data
+    body = {
+        "full_name": full_name,
+        "email": email,
+        "profile_image": profile_image,
+    }
     response = await UserProfileService().get_edit_user_profile_service(
         request, db, body, current_user
     )
     return response
+
+
+@authrouter.post("/change/number")
+async def change_number_api(
+    request: Request,
+    number: str = Form(...),
+    authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
+    db: AsyncSession = Depends(getdb),
+):
+    """
+    Change number API
+    Args:
+        request (Request): The request object.
+        number (str): The new number to be set.
+        authrouter (HTTPAuthorizationCredentials): The authorization credentials.
+        db (AsyncSession): The database session.
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    current_user = request.state.user_data
+    response = await UserProfileService().get_change_number_service(
+        db, current_user, number
+    )

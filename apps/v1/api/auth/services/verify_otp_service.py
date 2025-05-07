@@ -57,7 +57,7 @@ class VerifyOtpService(BaseResponseService):
                 )
 
             # Check if OTP is expired
-            if otp_record.expires_at - datetime.now() <= timedelta(minutes=constant.STATUS_FIVE):
+            if datetime.now() > otp_record.expires_at:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.otpExpired
                 )

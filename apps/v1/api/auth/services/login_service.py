@@ -17,9 +17,11 @@ from werkzeug.security import check_password_hash
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
-from core.utils.message_variable import InfoMessage, ErrorMessage
-from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.driver.models.model import Driver
+from config import aws_config
+from core.utils import constant_variable as constant
+from core.utils.message_variable import ErrorMessage, InfoMessage
+from core.utils.token_authentication import JWTOAuth2
 
 
 class LoginService(BaseResponseService):
@@ -43,7 +45,7 @@ class LoginService(BaseResponseService):
             user_obj = await self.get_verified_user_by_email(db, body["email"])
             if not user_obj:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotVerifiedOrFound
                 )
 
             if not check_password_hash(user_obj.password, body["password"]):
@@ -62,6 +64,12 @@ class LoginService(BaseResponseService):
             )
             data = jsonable_encoder(user_obj)
             data.pop("password")
+            data["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
+                if data["profile_image"]
+                else constant.STATUS_NULL
+            )
+
             token = JWTOAuth2().encode_access_token(token_data)
             data["access_token"] = (
                 token.decode("utf-8") if isinstance(token, bytes) else token

@@ -1,6 +1,6 @@
 """This module is used to implement driver specific table functionality."""
 
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Enum, Integer, String, Text, DateTime
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from config.db_session import Base
@@ -20,13 +20,6 @@ class Driver(Base, TimestampMixin):
         nullable=constant.STATUS_FALSE,
         autoincrement=constant.STATUS_TRUE,
     )
-    #TODO:
-    # vehicle_id = Column(
-    #     Integer,
-    #     ForeignKey("vehicles.id", ondelete="CASCADE"),
-    #     nullable=constant.STATUS_TRUE,
-    #     doc="Vehicle ID of the driver.",
-    # )
     full_name = Column(String(100), nullable=constant.STATUS_FALSE)
     email = Column(String(150), nullable=constant.STATUS_FALSE)
     password = Column(String(200), doc="Password of the user")
@@ -49,4 +42,12 @@ class Driver(Base, TimestampMixin):
         default=constant.STATUS_TRUE,
         doc="Whether user wants to receive notifications.",
     )
-
+    license_number = Column(
+        String(100), nullable=constant.STATUS_TRUE, doc="Driver license number"
+    )
+    license_image = Column(
+        Text, nullable=constant.STATUS_TRUE, doc="Driver license image URL"
+    )
+    license_expiry_date = Column(
+        DateTime, nullable=constant.STATUS_TRUE, doc="Driver license expiry date"
+    )

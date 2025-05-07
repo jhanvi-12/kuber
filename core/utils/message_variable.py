@@ -22,6 +22,11 @@ class InfoMessage:
     resetPasswordSuccess = "Password reset successfully!"
     otpVerified = "OTP verified successfully!"
     userRetrievedSuccess = "User information retrieved successfully!"
+    driverVehicleCreatedSuccess = "Driver vehicle details are created successfully!"
+    imageUploadSuccess = "Image uploaded successfully!"
+    otpGenerationSuccess = "OTP generated successfully!"
+    driverVehicleDocsUploadedSuccess = "Driver vehicle documents uploaded successfully!"
+    passwordChangedSuccess = "Password changed successfully!"
 
 
 class ErrorMessage:
@@ -51,4 +56,13 @@ class ErrorMessage:
     invalidImageType = "Invalid image type!"
     otpGenerationFailed = "Error occurred while generating OTP!"
     errGeneratingRes = "Error occurred while generating the response!"
+    driverNotFound = "Driver not found!"
+    vehicleNotFound = "Vehicle not found for the given driver!"
+    driverVehicleAlreadyExists = "Driver vehicle already exists!"
+    pwdLengthNotMatch = "password must be at least 8 characters long"
+    invalidMobileNumber = "Invalid mobile number format. Please provide a valid number with correct length."
+    allFieldsRequired =  "All password fields are required."
+    pwdNotMatch = "New password and confirm password do not match."
+    oldPwdIncorrect = "Old password is incorrect."
+    failedToUpdatePwd = "Failed to update password."
 

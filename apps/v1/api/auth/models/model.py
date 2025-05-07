@@ -89,6 +89,6 @@ class OtpVerification(Base, TimestampMixin):
     otp_code = Column(Integer, nullable=constant.STATUS_FALSE, doc="Otp code.")
     expires_at = Column(
         DateTime,
-        default=datetime.now(pytz.timezone("Asia/Kolkata"))
+        default=datetime.now()
         + timedelta(minutes=constant.STATUS_FIVE),
     )

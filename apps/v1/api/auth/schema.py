@@ -15,7 +15,6 @@ class CreateRegisterSchema(BaseModel):
     password: str
     confirm_password: str
     mobile: str
-    profile_image : Optional[str] = None
 
     class Config:
         """This class is the schema for admin configuration."""
@@ -28,8 +27,7 @@ class CreateRegisterSchema(BaseModel):
                 "email": "abc123@example.com",
                 "password": "Password@123",
                 "confirm_password": "Password@123",
-                "mobile": "1234567890",
-                "profile_image": "base64 image",
+                "mobile": "1234567890"
             }
         }
 
@@ -41,7 +39,6 @@ class UpdateRegisterSchema(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     mobile: Optional[str] = None
-    profile_image: Optional[str] = None
 
     class Config:
         """This class is the schema for admin update configuration."""
@@ -52,8 +49,7 @@ class UpdateRegisterSchema(BaseModel):
                 "full_name": "Jane Doe",
                 "email": "abc123@example.com",
                 "password": "Password@123",
-                "mobile": "1234567890",
-                "profile_image": "base64 image",
+                "mobile": "1234567890"
             }
         }
 
@@ -109,8 +105,8 @@ class VerifyOtpSchema(BaseModel):
 
 class ResetPasswordSchema(BaseModel):
     """This class is used to reset password."""
-    token: str
-    password: str
+    old_password: str
+    new_password: str
     confirm_password: str
 
     model_config = ConfigDict(
@@ -118,9 +114,9 @@ class ResetPasswordSchema(BaseModel):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "token": "wewr24345455",
-                "password": "password@123",
-                "confirm_password": "password@123",
+                "old_password": "password@123",
+                "new_password": "Password@123",
+                "confirm_password": "Password@123",
             }
         }
     )

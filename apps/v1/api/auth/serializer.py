@@ -27,15 +27,3 @@ class RegisterResSchema(Schema):
     created_at = fields.DateTime(required=True)
     updated_at = fields.DateTime(required=True)
     user_type = fields.Str(required=True)
-
-# class UpdateAdminResSchema(AdminResSchema):
-#     """
-#     Schema for serializing and deserializing user data when updating.
-#     """
-#     pass
-
-# class RetrieveAdminRes(AdminResSchema):
-#     """
-#     Schema for serializing and deserializing user data when retrieving.
-#     """
-#     pass

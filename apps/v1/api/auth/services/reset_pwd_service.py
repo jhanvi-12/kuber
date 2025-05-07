@@ -14,7 +14,7 @@ from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.auth.services.login_service import LoginService
 from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.auth.models.attribute import UserTypeEnum
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 RESET_TOKEN_EXPIRY_MINUTES = 15
 
@@ -34,49 +34,60 @@ def get_password_hash(password: str) -> str:
 class ResetPasswordService(BaseResponseService):
     """Reset password functionality"""
 
-    async def get_reset_password_service(self, db: AsyncSession, body):
+    async def get_reset_password_service(self, db: AsyncSession, body, current_user):
         """
-        Resets the password for the given user.
+        Changes the password for the logged-in user (in-app change password).
         Args:
             db (AsyncSession): The database session.
-            user_id (int): The ID of the user.
-            new_password (str): The new password.
+            body (dict): Should contain old_password, new_password, confirm_password.
+            current_user (dict): The current logged-in user info.
         Returns:
             StandardResponse: The response object with status and message.
         """
         try:
-            body = body.dict()
-            data = JWTOAuth2().verify_access_token(body["token"])
+            body = body.dict() if hasattr(body, "dict") else body
+            old_password = body.get("old_password")
+            new_password = body.get("new_password")
+            confirm_password = body.get("confirm_password")
 
-            if not data:
+            if not old_password or not new_password or not confirm_password:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.expiredToken
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.allFieldsRequired
                 )
 
-            user_object = await LoginService().get_user_by_email(db, data)
-            if not user_object:
+            if new_password != confirm_password:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.pwdNotMatch
+                )
+
+            # Fetch user object
+            user_obj = await UserAuthMethod(
+                User
+                if current_user["user_type"] == UserTypeEnum.CUSTOMER.value
+                else Driver
+            ).find_by_id(db, current_user["user_id"])
+            if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
                 )
 
-            user_object.password = generate_password_hash(body["new_password"])
-            model = User if user_object.user_type == UserTypeEnum.CUSTOMER else Driver
-            if not await DataBaseMethod(model).save(user_object, db):
+            if not check_password_hash(user_obj.password, old_password):
                 return self.response(
-                    status.HTTP_400_BAD_REQUEST,
-                    ErrorMessage.genericError,
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.oldPwdIncorrect
+                )
+
+            user_obj.password = generate_password_hash(new_password)
+            if not await DataBaseMethod(type(user_obj)).save(user_obj, db):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.failedToUpdatePwd
                 )
             await db.commit()
 
+            return self.response(status.HTTP_200_OK, InfoMessage.passwordChangedSuccess)
+        except Exception as e:
+            print(f"Error in get_reset_password_service: {str(e)}")
             return self.response(
-                status.HTTP_200_OK,
-                InfoMessage.resetPasswordSuccess,
-            )
-
-        except Exception:
-            return self.response(
-                status.HTTP_400_BAD_REQUEST,
-                ErrorMessage.somethingWentWrong,
+                status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
             )
 
     async def get_forgot_password_service(
@@ -99,7 +110,7 @@ class ResetPasswordService(BaseResponseService):
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
                 )
-                
+
             # Generate reset password token (valid for 15 minutes)
             reset_token = JWTOAuth2().create_reset_token(
                 {
@@ -110,9 +121,7 @@ class ResetPasswordService(BaseResponseService):
             )
 
             # TODO : add FE url here.
-            reset_link = (
-                f"https://yourdomain.com/reset-password?token={reset_token}"
-            )
+            reset_link = f"https://yourdomain.com/reset-password?token={reset_token}"
 
             # Email subject & template
             subject = mail_config.RESET_PASSWORD_MAIL_SUBJECT
