@@ -19,10 +19,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from apps.v1.api.auth.view import authrouter
+from apps.v1.api.driver.view import driverrouter
 from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
-# from middleware.authentication_middleware import AuthenticateMiddleware
+from middleware.authentication_middleware import AuthenticateMiddleware
 
 
 def init_routers(app_: FastAPI) -> None:
@@ -34,6 +35,9 @@ def init_routers(app_: FastAPI) -> None:
     """
     app_.include_router(
         authrouter, prefix=f"{constant_variable.API_V1}/auth", tags=["Authentication"]
+    )
+    app_.include_router(
+        driverrouter, prefix=f"{constant_variable.API_V1}/driver", tags=["Driver"]
     )
 
 
@@ -55,7 +59,7 @@ def make_middleware() -> list[Middleware]:
         Middleware(
             S3PathMiddleware, config_path=f"{project_path.S3_ROOT}/s3_paths_config.json"
         ),
-        # Middleware(AuthenticateMiddleware)
+        Middleware(AuthenticateMiddleware)
     ]
     return middleware
 

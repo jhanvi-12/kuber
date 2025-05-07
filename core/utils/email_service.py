@@ -82,7 +82,7 @@ class EmailService:
         message["To"] = receiver_email
 
         if html_file:
-            html = open(f"{os.getcwd()}\\assets\\template\\{html_file}").read()
+            html = os.path.join(os.getcwd(), "assets", "template", html_file)
             # Create a text/html message from a rendered subject
             message.attach(
                 MIMEText(Environment().from_string(html).render(**render_args), "html")

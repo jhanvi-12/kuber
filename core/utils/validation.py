@@ -26,7 +26,7 @@ class ValidationMethods:
 
         # Check length
         if len(value) <= 7:
-            raise ValueError("Admin password must be at least 8 characters long")
+            raise ValueError("password must be at least 8 characters long")
 
         # Check for lowercase letter
         if not re.search(r"[a-z]", value):

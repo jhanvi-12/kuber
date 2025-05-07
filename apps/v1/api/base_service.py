@@ -84,17 +84,20 @@ class BaseResponseService:
             current_user (dict): The current user data.
 
         Returns:
-            dict: The user object.
+            dict: The user object if found, None otherwise.
         """
-        if current_user["user_type"] == UserTypeEnum.CUSTOMER.value:
-            user_obj = await UserAuthMethod(User).find_by_id(
-                db, current_user["user_id"]
-            )
-        else:
-            user_obj = await UserAuthMethod(Driver).find_by_id(
-                db, current_user["user_id"]
-            )
-        return user_obj
+        try:
+            if current_user["user_type"] == UserTypeEnum.CUSTOMER.value:
+                user_obj = await UserAuthMethod(User).find_by_id(
+                    db, current_user["user_id"]
+                )
+            else:
+                user_obj = await UserAuthMethod(Driver).find_by_id(
+                    db, current_user["user_id"]
+                )
+            return user_obj
+        except Exception:
+            return None
 
     def get_image_content_type(self, image_data: bytes):
         """
@@ -112,7 +115,7 @@ class BaseResponseService:
         except Exception:
             return constant.STATUS_NULL
 
-    def get_upload_file_to_s3(self, request, file_obj, path):
+    def get_upload_file_to_s3(self, request, file_name, path):
         """
         Uploads a file to S3.
 
@@ -126,12 +129,9 @@ class BaseResponseService:
             str: The URL of the uploaded file.
         """
         try:
-            profile_data = base64.b64decode(file_obj)
-            profile_image = io.BytesIO(profile_data)
-
-            content_type = self.get_image_content_type(profile_data)
-            content_type_data = "." + content_type.split("/")[1]
-            path_data = f"{path}{content_type_data}"
+            profile_image = file_name.file
+            content_type = "." + file_name.content_type.split("/")[1]
+            path_data = path + content_type
             if not content_type:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidImageType
@@ -142,3 +142,27 @@ class BaseResponseService:
             return file_obj
         except Exception:
             return constant.STATUS_NULL
+
+    def validate_mobile_number(self, mobile_number: str) -> bool:
+        """
+        Validates the mobile number format and length.
+
+        Args:
+            mobile_number (str): The mobile number to validate.
+
+        Returns:
+            bool: True if the mobile number is valid, False otherwise.
+        """
+        try:
+            # Remove any spaces or special characters
+            mobile_number = ''.join(filter(str.isdigit, mobile_number))
+            
+            # Check if the number starts with a valid country code (e.g., +91 for India)
+            if mobile_number.startswith('91'):
+                # For Indian numbers, total length should be 12 (including country code)
+                return len(mobile_number) == 12
+            else:
+                # For other numbers, check if length is between 10 and 15 digits
+                return 10 <= len(mobile_number) <= 15
+        except Exception:
+            return False

@@ -1,8 +1,10 @@
 """
 This module defines the service for admin user signup, including the creation of new admin users.
 """
+
 import uuid
-from fastapi import BackgroundTasks, status
+import json
+from fastapi import BackgroundTasks, status, Response
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 from werkzeug.security import generate_password_hash
@@ -14,9 +16,8 @@ from apps.v1.api.auth.serializer import RegisterResSchema
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
 from config import aws_config, mail_config
-from core.utils import DataBaseMethod
+from core.utils import DataBaseMethod, db_method, ValidationMethods
 from core.utils import constant_variable as constant
-from core.utils import db_method
 from core.utils.email_service import EmailService
 from core.utils.message_variable import ErrorMessage, InfoMessage
 
@@ -29,7 +30,9 @@ class SignUpService(BaseResponseService):
         create_signup_service(db, body): Creates a new admin user.
     """
 
-    async def create_signup_service(self, request, db: AsyncSession, user_type, body):
+    async def create_signup_service(
+        self, request, db: AsyncSession, user_type, body, profile_image
+    ):
         """
         Creates a new admin user.
 
@@ -42,17 +45,20 @@ class SignUpService(BaseResponseService):
             StandardResponse: The response object with status and message.
         """
         try:
-            body = body.dict()
+            ValidationMethods().validate_password(body["password"])
             if user_type.value == UserTypeEnum.CUSTOMER.value:
                 # Check body's Email already exist
                 file_path = f"{aws_config.AWS_USER_PROFILE_PATH}{uuid.uuid4()}"
-                data = await self.check_existing_user_details_with_email(
-                    request, User, file_path, body, db
+                user_data = await self.check_existing_user_details_with_email(
+                    request, profile_image, User, file_path, body, db
                 )
-                if not data:
+                if user_data.status_code != status.HTTP_200_OK:
                     return self.response(
-                        status.HTTP_400_BAD_REQUEST, ErrorMessage.errorCreatingUser
+                        status.HTTP_400_BAD_REQUEST,
+                        json.loads(user_data.body)["message"],
                     )
+
+                data = json.loads(user_data.body)["data"]
                 user_obj = User(
                     full_name=body["full_name"],
                     email=body["email"],
@@ -64,12 +70,15 @@ class SignUpService(BaseResponseService):
 
             else:
                 user_obj = await self.register_driver_service(
-                    request, db, user_type, body
+                    request, db, user_type, body, profile_image
                 )
-                if user_obj is constant.STATUS_FALSE:
-                    return self.response(
-                        status.HTTP_400_BAD_REQUEST, ErrorMessage.emailAllreadyExists
-                    )
+
+                if isinstance(user_obj, Response):
+                    if user_obj.status_code != status.HTTP_200_OK:
+                        return self.response(
+                            status.HTTP_400_BAD_REQUEST,
+                            json.loads(user_obj.body)["message"],
+                        )
 
             model = Driver if user_type.value == UserTypeEnum.DRIVER.value else User
             if not await DataBaseMethod(model).save(user_obj, db):
@@ -78,34 +87,47 @@ class SignUpService(BaseResponseService):
                 )
 
             # Commit the transaction so that the changes are saved in the database.
+            # TODO :- commit after all opertaions like otp generation and email sending.
             await db.commit()
-            data = jsonable_encoder(user_obj)
-            data.pop("password")
+            response_data = jsonable_encoder(user_obj)
+            profile_image = (
+                f"{aws_config.AWS_BASE_URL}{response_data['profile_image']}"
+                if response_data["profile_image"]
+                else constant.STATUS_NULL
+            )
+            response_data.pop("password")
 
-            if self.convert_datetime_format(data) is None:
+            if self.convert_datetime_format(response_data) is None:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.errGeneratingRes
                 )
-            response_data = RegisterResSchema().dump(data)
 
             # Generate otp for the user
-            otp_code = await self.create_otp_code_service(db, user_obj)
-            if otp_code is constant.STATUS_FALSE:
+            otp_obj = await self.create_otp_code_service(db, user_obj)
+            if otp_obj.status_code != status.HTTP_200_OK:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
                 )
-
+            otp_code = json.loads(otp_obj.body)["data"]
+            print("++++++++++", otp_code)
             # Send Otp in register user email
             html_file = "otp_email_verification.html"
             background_tasks = BackgroundTasks()
-            body = {"otp_code": otp_code}
+            body = {"otp_code": otp_code["otp_code"]}
             # EmailService().send_mail(mail_config.OTP_MAIL_SUBJECT, body, html_file, user_obj.email)
 
             return self.response(
                 status.HTTP_201_CREATED,
                 InfoMessage.userSignupSuccess,
-                response_data,
+                RegisterResSchema().dump(response_data),
             )
+
+        except ValueError as ve:
+            return self.response(
+                status.HTTP_400_BAD_REQUEST,
+                str(ve)
+            )
+
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST,
@@ -126,10 +148,9 @@ class SignUpService(BaseResponseService):
         try:
             # Generate a random OTP code
             otp_code = self.generate_otp_code()
-
             driver_id, user_id = (
                 (user_obj.id, constant.STATUS_NULL)
-                if user_obj.user_type.value == UserTypeEnum.DRIVER.value
+                if user_obj.user_type == UserTypeEnum.DRIVER.value
                 else (constant.STATUS_NULL, user_obj.id)
             )
             # Save the OTP code in the database
@@ -137,17 +158,23 @@ class SignUpService(BaseResponseService):
                 user_id=user_id, driver_id=driver_id, otp_code=otp_code
             )
             if not await db_method.DataBaseMethod(OtpVerification).save(otp_obj, db):
-                return constant.STATUS_FALSE
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
+                )
 
             await db.commit()
-            return otp_code
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.otpGenerationSuccess,
+                {"otp_code": otp_code},
+            )
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
             )
 
     async def register_driver_service(
-        self, request, db: AsyncSession, user_type, body: dict
+        self, request, db: AsyncSession, user_type, body: dict, profile_image_file
     ):
         """
         Registers a new driver.
@@ -162,14 +189,15 @@ class SignUpService(BaseResponseService):
         """
         try:
             file_path = f"{aws_config.AWS_DRIVER_PROFILE_PATH}{uuid.uuid4()}"
-            data = await self.check_existing_user_details_with_email(
-                request, Driver, file_path, body, db
+            driver_data = await self.check_existing_user_details_with_email(
+                request, profile_image_file, Driver, file_path, body, db
             )
-            if not data:
+            if driver_data.status_code != status.HTTP_200_OK:
                 return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.emailAllreadyExists
+                    status.HTTP_400_BAD_REQUEST, json.loads(driver_data.body)["message"]
                 )
 
+            data = json.loads(driver_data.body)["data"]
             user_obj = Driver(
                 full_name=body["full_name"],
                 email=body["email"],
@@ -181,10 +209,18 @@ class SignUpService(BaseResponseService):
 
             return user_obj
         except Exception:
-            return constant.STATUS_FALSE
+            return self.response(
+                status.HTTP_400_BAD_REQUEST, ErrorMessage.driverSignupFailed
+            )
 
     async def check_existing_user_details_with_email(
-        self, request, model_name, file_path, body: dict, db: AsyncSession
+        self,
+        request,
+        profile_image_file,
+        model_name: str,
+        file_path: str,
+        body: dict,
+        db: AsyncSession,
     ):
         """
         Checks if a user with the given email already exists.
@@ -203,17 +239,20 @@ class SignUpService(BaseResponseService):
                 )
             hashed_password = generate_password_hash(body["password"])
             contact = body["mobile"] if body["mobile"] else constant.STATUS_NULL
-            if body["profile_image"]:
+            if profile_image_file:
                 profile_image = self.get_upload_file_to_s3(
-                    request, body["profile_image"], file_path
+                    request, profile_image_file, file_path
                 )
             else:
                 profile_image = constant.STATUS_NULL
+
             data = {
                 "hashed_password": hashed_password,
                 "contact": contact,
                 "profile_image": profile_image,
             }
-            return data
+            return self.response(
+                status.HTTP_200_OK, InfoMessage.imageUploadSuccess, data
+            )
         except Exception:
             return constant.STATUS_FALSE
