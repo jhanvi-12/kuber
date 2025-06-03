@@ -8,6 +8,10 @@ from apps.v1.api.driver import schema
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.driver.services.create_driver_vehicle_service import DriverService
 from apps.v1.api.driver.services.get_driver_veh_service import GetDriverService
+from apps.v1.api.driver.services.driver_plan_service import DriverPlanService
+from apps.v1.api.driver.services.update_driver_status_service import (
+    UpdateDriverStatusService,
+)
 from apps.v1.api.pagination_service import oauth2
 from config import db_config
 
@@ -24,7 +28,7 @@ async def driver_vehicle_details_api(
 ):
     """
     Updates the vehicle details for the driver.
-    
+
     Args:
         request (Request): The request object.
         body (DriverVehicleDetailsSchema): The request body containing vehicle details.
@@ -40,6 +44,7 @@ async def driver_vehicle_details_api(
     )
     return response
 
+
 @driverrouter.get("/vehicle/details")
 async def get_driver_vehicle_details_api(
     request: Request,
@@ -48,7 +53,7 @@ async def get_driver_vehicle_details_api(
 ):
     """
     Retrieves the vehicle details for the driver.
-    
+
     Args:
         request (Request): The request object.
         body (DriverVehicleDetailsSchema): The request body containing vehicle details.
@@ -59,10 +64,9 @@ async def get_driver_vehicle_details_api(
         StandardResponse: The response object with status and message.
     """
     current_user = request.state.user_data
-    response = await GetDriverService().get_driver_vehicle_service(
-        db, current_user
-    )
+    response = await GetDriverService().get_driver_vehicle_service(db, current_user)
     return response
+
 
 @driverrouter.post("/upload/vehicle/docs")
 async def upload_driver_vehicle_docs(
@@ -71,7 +75,6 @@ async def upload_driver_vehicle_docs(
     license_number: str = Form(...),
     license_expiration_date: str = Form(...),
     vehicle_insurance_expiration_date: str = Form(...),
-
     license_image: UploadFile = File(...),
     vehicle_image: UploadFile = File(...),
     vehicle_insurance_image: UploadFile = File(...),
@@ -97,8 +100,76 @@ async def upload_driver_vehicle_docs(
         "vehicle_insurance_expiration_date": vehicle_insurance_expiration_date,
         "license_image": license_image,
         "vehicle_image": vehicle_image,
-        "vehicle_insurance_image": vehicle_insurance_image
+        "vehicle_insurance_image": vehicle_insurance_image,
     }
     current_user = request.state.user_data
-    response = await DriverService().upload_driver_vehicle_docs(request, db, data, current_user)
+    response = await DriverService().upload_driver_vehicle_docs(
+        request, db, data, current_user
+    )
+    return response
+
+
+@driverrouter.post("/select_plan")
+async def select_plan_api(
+    request: Request,
+    plan_name: attribute.PlanNameEnum,
+    db: AsyncSession = Depends(getdb),
+    authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """
+    Selects a plan for the driver.
+    Args:
+        request (Request): The request object.
+        db (AsyncSession): The database session.
+        authrorize (HTTPAuthorizationCredentials): The authorization credentials.
+
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    current_user = request.state.user_data
+    response = await DriverPlanService().select_driver_plan(current_user, plan_name, db)
+    return response
+
+
+@driverrouter.put("/status/update")
+async def update_driver_status_api(
+    request: Request,
+    driver_status: int,
+    db: AsyncSession = Depends(getdb),
+    authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """
+    Updates the driver's status.
+
+    Args:
+        request (Request): The request object.
+        driver_status (int): The new status of the driver.
+        db (AsyncSession): The database session.
+        authrorize (HTTPAuthorizationCredentials): The authorization credentials.
+
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    current_user = request.state.user_data
+    response = await UpdateDriverStatusService().update_driver_status_service(
+        current_user, db, driver_status
+    )
+    return response
+
+@driverrouter.get("/check/plan_expiry")
+async def check_plan_expiry_api(
+    db: AsyncSession = Depends(getdb)
+):
+    """
+    Checks the driver's plan expiry status.
+
+    Args:
+        request (Request): The request object.
+        db (AsyncSession): The database session.
+        authrorize (HTTPAuthorizationCredentials): The authorization credentials.
+
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    response = await DriverPlanService().check_driver_plan_expiry_service(db)
     return response

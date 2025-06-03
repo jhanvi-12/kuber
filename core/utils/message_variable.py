@@ -27,6 +27,10 @@ class InfoMessage:
     otpGenerationSuccess = "OTP generated successfully!"
     driverVehicleDocsUploadedSuccess = "Driver vehicle documents uploaded successfully!"
     passwordChangedSuccess = "Password changed successfully!"
+    planSelectedSuccess = "Plan selected successfully!"
+    driverStatusUpdated = "Driver status updated successfully!"
+    plansChecked  = "Plans checked successfully!"
+    noPlansExpired = "No plans have expired for the driver!"
 
 
 class ErrorMessage:
@@ -65,4 +69,6 @@ class ErrorMessage:
     pwdNotMatch = "New password and confirm password do not match."
     oldPwdIncorrect = "Old password is incorrect."
     failedToUpdatePwd = "Failed to update password."
+    invalidPlanName = "Invalid plan name!"
+    planAlreadyExists = "Plan already exists for the driver!"
 

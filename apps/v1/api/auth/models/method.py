@@ -85,3 +85,4 @@ class UserAuthMethod:
             stmt = select(self.model).where(self.model.license_id.in_(license_ids))
             result = await db.execute(stmt)
             return result.scalars().all()
+

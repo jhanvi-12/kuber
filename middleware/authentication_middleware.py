@@ -51,7 +51,8 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/v1/auth/register",
             "/v1/auth/login",
-            "/v1/auth/otp/verify"
+            "/v1/auth/otp/verify",
+            "/v1/driver/check/plan_expiry"
         ]
         if request.url.path in excluded_paths:
             return await call_next(request)

@@ -7,8 +7,6 @@ Classes:
 """
 
 from datetime import datetime, timedelta
-
-import pytz
 from sqlalchemy import (
     Boolean,
     Column,
@@ -18,6 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Float
 )
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
@@ -54,6 +53,12 @@ class User(TimestampMixin, Base):
     )
     is_verified = Column(
         Boolean, default=constant.STATUS_FALSE, doc="Whether user is verified or not."
+    )
+    latitude = Column(
+        Float, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
+    )
+    longitude = Column(
+        Float, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
     notification_flag = Column(
         Boolean,
