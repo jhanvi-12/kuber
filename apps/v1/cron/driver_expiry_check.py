@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 BASE_URL = env_config.BACKEND_URL
 
 
-def send_request(method: str, url: str, json_header: bool = False) -> requests.Response:
+def send_request(
+    method: str, url: str, headers: dict = None, json_header: bool = False, data: dict = None
+) -> requests.Response:
     """This function sends an HTTP request to the specified URL with the given method.
     Args:
         method (str): The HTTP method to use (e.g., GET, POST, PUT, DELETE).
@@ -25,14 +27,18 @@ def send_request(method: str, url: str, json_header: bool = False) -> requests.R
         requests.Response: The response object from the request.
     """
     try:
-        headers = {"accept": "application/json"}
+        default_headers = {"accept": "application/json"}
         if json_header and method.upper() in ["POST", "PUT", "PATCH"]:
             headers["Content-Type"] = "application/json"
 
-        response = requests.request(method, url, headers=headers)
-        response.raise_for_status()
+        # Merge with custom headers
+        if headers:
+            default_headers.update(headers)
+
+        print(url, default_headers, data)
+        response = requests.request(method, url, headers=default_headers, data=data)
         return response
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"Error sending request to {url}: {e}")
         raise
 

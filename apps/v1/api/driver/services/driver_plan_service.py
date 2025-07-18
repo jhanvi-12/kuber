@@ -15,6 +15,7 @@ from core.utils.message_variable import *
 from apps.v1.api.plans.models.method import PlansMethod
 from apps.v1.api.plans.models.model import Plans
 from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.driver.services.driver_firebase_notification import DriverFirebaseNotification
 
 # Plan details: name -> {price, validity_days}
 PLAN_DETAILS = {
@@ -100,16 +101,11 @@ class DriverPlanService(BaseResponseService):
                 driver_ids = [plan.driver_id for plan in expired_plans]
                 drivers = await PlansMethod(Driver).find_plan_by_driver_id_list(db, driver_ids)
                 print("Expired Drivers:", drivers)
-                # for driver in drivers:
-                    # send notification to driver
-                    # TODO: Implement notification logic
-                    # notifications.append({
-                    #     "token": driver.device_token,
-                    #     "title": "Plan Expired",
-                    #     "body": "Your subscription plan has expired. Please renew to continue."
-                    # })
-
-                
+                # Intialize the firebase notification service
+                title = "Your plan has been expired"
+                body = "Please select a new plan to continue using the service."
+                await DriverFirebaseNotification().send_notification_to_drivers(drivers, title, body)
+         
                 return self.response(
                     status.HTTP_200_OK,
                     InfoMessage.plansChecked,

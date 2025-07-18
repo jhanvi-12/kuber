@@ -31,7 +31,18 @@ class InfoMessage:
     driverStatusUpdated = "Driver status updated successfully!"
     plansChecked  = "Plans checked successfully!"
     noPlansExpired = "No plans have expired for the driver!"
-
+    notificationSentToDrivers = "Notification sent to drivers successfully!"
+    rideBookedSuccessfully = "Ride booked successfully!"
+    rideRequestSent = "Ride request sent. Waiting for driver acceptance..."
+    rideAcceptedSuccessfully = "Ride accepted successfully!"
+    driverHeading = "Driver is heading to your location."
+    reqAccepted = "Request is accepted by the driver."
+    driverArrived = "Driver has arrived to your location."
+    arrivedNow = "Arrived now."
+    rideAndDriverFound = "Ride and driver found successfully!"
+    driverReachedSuccessfully = "Driver has reached your location successfully!"
+    driverTrackingSuccess = "Driver tracking information retrieved successfully!"
+    rideCancelledSuccessfully = "Ride cancelled successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -71,4 +82,15 @@ class ErrorMessage:
     failedToUpdatePwd = "Failed to update password."
     invalidPlanName = "Invalid plan name!"
     planAlreadyExists = "Plan already exists for the driver!"
+    noNearbyDriversFound = "No drivers available in your area. Please try again later."
+    notificationFailed = "Failed to send notification to drivers."
+    rideOrDriverNotFound = "Ride or driver not found with the provided details."
+    rideAlreadyAccepted = "Ride has already been accepted by another driver."
+    failedtoAccept = "Failed to accept the ride. Please try again later."
+    rideNotAccepted = "Ride has not been accepted by any driver yet."
+    invalidRideStatus =  "Invalid status transition."
+    rideAlreadyAssigned = "Ride already assigned to another driver."
+    rideNotFound = "Ride not found with the provided ID."
+    rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
+
 

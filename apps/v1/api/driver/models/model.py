@@ -73,4 +73,3 @@ class Driver(Base, TimestampMixin):
         default=0.0,
         doc="Average rating of the driver",
     )
-

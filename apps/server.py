@@ -20,6 +20,7 @@ from apps.v1.cron.driver_expiry_check import setup_driver_expiry_cron
 
 from apps.v1.api.auth.view import authrouter
 from apps.v1.api.driver.view import driverrouter
+from apps.v1.api.ride.view import riderouter
 from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
@@ -39,7 +40,9 @@ def init_routers(app_: FastAPI) -> None:
     app_.include_router(
         driverrouter, prefix=f"{constant_variable.API_V1}/driver", tags=["Driver"]
     )
-
+    app_.include_router(
+        riderouter, prefix=f"{constant_variable.API_V1}/user", tags=["Ride"]
+    )
 
 def make_middleware() -> list[Middleware]:
     """
@@ -62,9 +65,6 @@ def make_middleware() -> list[Middleware]:
         Middleware(AuthenticateMiddleware)
     ]
     return middleware
-
-
-# TODO: Redis Cache Implement
 
 
 def create_app() -> FastAPI:

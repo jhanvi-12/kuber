@@ -1,53 +1,85 @@
 """Scheduler for checking driver plan expiration and sending notifications."""
 
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import logging
+from typing import List, Dict, Optional
 
-from apps.v1.api.driver.models.model import Driver
-from apps.v1.api.plans.models.model import Plans
-# from core.utils.notification_service import send_push_notification  # Assume this exists or stub below
+import firebase_admin
+from firebase_admin import credentials, messaging
+from fastapi import status
 
-# Stub for push notification (replace with actual implementation)
-async def send_push_notification(device_token: str, title: str, message: str):
-    # Implement actual push notification logic here
-    print(f"Sending notification to {device_token}: {title} - {message}")
+from apps.v1.api.base_service import BaseResponseService
+from core.utils.message_variable import ErrorMessage, InfoMessage
+
+logger = logging.getLogger(__name__)
 
 
-async def check_and_notify_expired_plans(db: AsyncSession):
-    now = datetime.now()
-    # Get all active, non-expired plans that have expired
-    result = await db.execute(
-        select(Plans).where(
-            Plans.is_expired == False,
-            Plans.expiry_date <= now
+class DriverFirebaseNotification(BaseResponseService):
+    """Handles Firebase notifications for drivers."""
+
+    _firebase_initialized: bool = False
+
+    async def _initialize_firebase(self) -> bool:
+        """Initialize Firebase app if not already initialized."""
+        if self._firebase_initialized:
+            return True
+
+        try:
+            cred = credentials.Certificate("kubercab-730b1e547e.json")
+            firebase_admin.initialize_app(cred)
+            self._firebase_initialized = True
+            logger.info("Firebase initialized successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Firebase initialization failed: {str(e)}")
+            return False
+
+    def _build_message(self, token: str, title: str, body: str, data: Optional[Dict] = None) -> messaging.Message:
+        """Builds the Firebase notification message."""
+        return messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body
+            ),
+            data=data or {},
+            token=token
         )
-    )
-    expired_plans = result.scalars().all()
-    for plan in expired_plans:
-        # Mark plan as expired
-        plan.is_expired = True
-        # Get driver info
-        driver_result = await db.execute(select(Driver).where(Driver.id == plan.driver_id))
-        driver = driver_result.scalar_one_or_none()
-        if driver and driver.device_token:
-            await send_push_notification(
-                driver.device_token,
-                title="Plan Expired",
-                message=f"Your {plan.plan_name} has expired. Please renew to continue enjoying our services."
+
+    async def send_notification_to_drivers(
+        self,
+        drivers: List[Dict],
+        title: str,
+        body: str,
+        data: Optional[Dict] = None
+    ):
+        """
+        Send ride notifications to nearby drivers.
+
+        Args:
+            drivers: List of dicts with keys: 'device_token' and 'driver_id'.
+            title: Title of the notification.
+            body: Body of the notification.
+            data: Optional extra payload.
+        """
+        if not await self._initialize_firebase():
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain
             )
-    await db.commit()
 
+        for driver in drivers:
+            fcm_token = driver.get("device_token")
+            driver_id = driver.get("driver_id")
 
-def start_plan_expiry_scheduler(db: AsyncSession):
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(
-        check_and_notify_expired_plans,
-        'cron',
-        hour=0, minute=0,  # Midnight
-        args=[db],
-        id='plan_expiry_check',
-        replace_existing=True
-    )
-    scheduler.start() 
+            # if not fcm_token or not isinstance(fcm_token, str):
+            #     logger.warning(f"Missing or invalid token for driver {driver_id}. Skipping.")
+            #     continue
+
+            try:
+                message = self._build_message(fcm_token, title, body, data)
+                messaging.send(message)
+                logger.info(f"Notification sent to driver {driver_id}.")
+            except Exception as e:
+                logger.error(f"Failed to send notification to driver {driver_id}: {str(e)}")
+
+        return self.response(status.HTTP_200_OK, InfoMessage.notificationSentToDrivers)
+

@@ -3,8 +3,9 @@
 from fastapi import APIRouter, Depends, Request, File, Form, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from typing import Optional
 from apps.v1.api.driver import schema
+from apps.v1.api.ride.schema import LocationSchema
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.driver.services.create_driver_vehicle_service import DriverService
 from apps.v1.api.driver.services.get_driver_veh_service import GetDriverService
@@ -135,6 +136,7 @@ async def select_plan_api(
 async def update_driver_status_api(
     request: Request,
     driver_status: int,
+    body : Optional[LocationSchema] = None,
     db: AsyncSession = Depends(getdb),
     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
@@ -152,7 +154,7 @@ async def update_driver_status_api(
     """
     current_user = request.state.user_data
     response = await UpdateDriverStatusService().update_driver_status_service(
-        current_user, db, driver_status
+        current_user, db, driver_status, body
     )
     return response
 

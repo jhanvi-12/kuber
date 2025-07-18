@@ -50,7 +50,6 @@ class LoginService(BaseResponseService):
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotVerifiedOrFound
                 )
-
             if not check_password_hash(user_obj.password, body["password"]):
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED,

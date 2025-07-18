@@ -60,6 +60,9 @@ class User(TimestampMixin, Base):
     longitude = Column(
         Float, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
+    address = Column(
+        String(255), nullable=constant.STATUS_TRUE, doc="Address of the user."
+    )
     notification_flag = Column(
         Boolean,
         default=constant.STATUS_TRUE,

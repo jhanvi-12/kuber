@@ -64,7 +64,7 @@ class LoginSchema(BaseModel):
         from_attributes = constant.STATUS_TRUE
         extra = "forbid"
         json_schema_extra = {
-            "example": {"email": "johnsmith@example.com", "password": "Abc@123"}
+            "example": {"email": "johnsmith@example.com", "password": "Password@123"}
         }
 
     @field_validator("password")

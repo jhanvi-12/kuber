@@ -15,7 +15,7 @@ class UpdateDriverStatusService(BaseResponseService):
     """This class is used to update the driver status."""
 
     async def update_driver_status_service(
-        self, current_user, db: AsyncSession, driver_status: str
+        self, current_user, db: AsyncSession, driver_status: str, body
     ):
         """
         Updates the status of a driver.
@@ -30,6 +30,7 @@ class UpdateDriverStatusService(BaseResponseService):
         """
         try:
             # Update the driver's status
+            body = body.dict() if body else None
             driver_id = current_user["user_id"]
             driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
             if not driver_obj:
@@ -42,6 +43,9 @@ class UpdateDriverStatusService(BaseResponseService):
                 if driver_status == constant.STATUS_ONE
                 else constant.STATUS_FALSE
             )
+
+            driver_obj.latitude = body.get("latitude") if body else None
+            driver_obj.longitude = body.get("longitude") if body else None
 
             data = {"is_active": driver_obj.is_active}
             db.add(driver_obj)
