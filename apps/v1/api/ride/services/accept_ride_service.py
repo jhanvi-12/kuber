@@ -78,7 +78,7 @@ class RideAcceptService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
-    async def user_start_ride_service(self, db: AsyncSession, body: dict):
+    async def user_start_ride_service(self, current_user, db: AsyncSession, body: dict):
         """ Accept a ride request by user.
 
         Args:
@@ -92,6 +92,14 @@ class RideAcceptService(BaseResponseService):
             ride_id = body.get("ride_id")
             driver_id = body.get("driver_id")
             ride_status = body.get("ride_status")
+
+            user = await DriverMethod(Driver).get_driver_by_id(db, current_user.get("id"))
+
+            if not user:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.userNotFound,
+                )
 
             ride, driver = await self.fetch_ride_and_driver(db, ride_id, driver_id)
 

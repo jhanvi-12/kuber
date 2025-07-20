@@ -16,7 +16,6 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
-from apps.v1.cron.driver_expiry_check import setup_driver_expiry_cron
 
 from apps.v1.api.auth.view import authrouter
 from apps.v1.api.driver.view import driverrouter
@@ -87,6 +86,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-# Setup the driver expiry cron job
-asyncio.run(setup_driver_expiry_cron())
-logger = logging.getLogger(__name__)

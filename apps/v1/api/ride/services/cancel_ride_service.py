@@ -1,16 +1,12 @@
 """This module is responsible to maintain the ride cancellation service logic."""
 
 from fastapi import status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.method import DriverMethod
-from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
-from config import aws_config
-from core.utils import constant_variable as constant
 from core.utils.message_variable import *
 
 
@@ -34,6 +30,12 @@ class UserRideCancelService(BaseResponseService):
             reason = body.get("reason")
             description = body.get("description")
 
+            user = await self.get_current_user_details(db, current_user)
+            if not user:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.userOrDriverNotFound,
+                )
             # Fetch the ride and driver details
             ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
 

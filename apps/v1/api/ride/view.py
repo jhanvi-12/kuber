@@ -44,6 +44,7 @@ async def book_ride_api(
 async def start_ride_api(
     body: dict,
     db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
     """
     Endpoint to accept a ride.
@@ -55,13 +56,15 @@ async def start_ride_api(
     Returns:
         dict: A response indicating the success or failure of the ride acceptance.
     """
-    response = await RideAcceptService().user_start_ride_service(db, body)
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await RideAcceptService().user_start_ride_service(current_user, db, body)
     return response
 
 @riderouter.post("/ride/track_driver")
 async def track_driver_api(
     body: dict,
-    db: AsyncSession = Depends(getdb)
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
     """
     Endpoint to track the driver's live location.
@@ -73,7 +76,8 @@ async def track_driver_api(
     Returns:
         dict: A response containing the driver's current location.
     """
-    response = await TrackRideService().user_track_driver_service(db, body)
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await TrackRideService().user_track_driver_service(current_user, db, body)
     return response
 
 @riderouter.post("/ride/update_status")

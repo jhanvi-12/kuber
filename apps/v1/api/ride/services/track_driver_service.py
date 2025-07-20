@@ -10,6 +10,7 @@ from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
 from config import aws_config
+from apps.v1.api.auth.models.model import User
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
 from apps.v1.api.ride.services.book_ride_service import BookRideService
@@ -30,7 +31,7 @@ class TrackRideService(BaseResponseService):
         return ride, driver
 
     async def user_track_driver_service(
-        self, db: AsyncSession, body: dict
+        self, current_user, db: AsyncSession, body: dict
     ):
         """
         Track the driver live location.
@@ -47,6 +48,12 @@ class TrackRideService(BaseResponseService):
             driver_id = body.get("driver_id")
             new_status = body.get("ride_status")
 
+            user = await DriverMethod(User).get_driver_by_id(db, current_user.get("id"))
+            if not user:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.userNotFound,
+                )
             ride, driver = await self.fetch_ride_and_driver(db, ride_id, driver_id)
 
             if not ride or not driver:

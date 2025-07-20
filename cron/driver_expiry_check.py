@@ -1,19 +1,22 @@
 """This module implements a cron job to check driver expiry dates."""
 
+import asyncio
 import logging
-
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from config import env_config
-from core.utils import constant_variable as constant
+import env_config
+# from core.utils import constant_variable as constant
+# from core.utils.helper import send_request
+from flask import Flask
 
+crop_app = Flask(__name__)
 scheduler = BackgroundScheduler()
 logger = logging.getLogger(__name__)
 
 BASE_URL = env_config.BACKEND_URL
-
+print(f"BASE_URL: {BASE_URL}")
 
 def send_request(
     method: str, url: str, headers: dict = None, json_header: bool = False, data: dict = None
@@ -35,12 +38,11 @@ def send_request(
         if headers:
             default_headers.update(headers)
 
-        print(url, default_headers, data)
         response = requests.request(method, url, headers=default_headers, data=data)
         return response
     except Exception as e:
         print(f"Error sending request to {url}: {e}")
-        raise
+        return None
 
 
 class SchedulerJob:
@@ -75,10 +77,12 @@ async def setup_driver_expiry_cron():
         SchedulerJob.check_driver_expiry,
         CronTrigger(
             day_of_week="mon-sun",
-            hour=constant.STATUS_TWELVE,
-            minute=constant.STATUS_ZERO,
+            hour=13,
+            minute=25,
             timezone="Asia/Kolkata",
         ),
     )
     # Start the scheduler
     scheduler.start()
+
+asyncio.run(setup_driver_expiry_cron())
