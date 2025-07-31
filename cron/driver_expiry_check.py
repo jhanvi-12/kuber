@@ -7,8 +7,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 import env_config
-# from core.utils import constant_variable as constant
-# from core.utils.helper import send_request
 from flask import Flask
 
 crop_app = Flask(__name__)
@@ -77,8 +75,8 @@ async def setup_driver_expiry_cron():
         SchedulerJob.check_driver_expiry,
         CronTrigger(
             day_of_week="mon-sun",
-            hour=13,
-            minute=25,
+            hour=12,
+            minute=00,
             timezone="Asia/Kolkata",
         ),
     )
