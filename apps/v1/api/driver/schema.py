@@ -27,3 +27,21 @@ class DriverVehicleDetailsSchema(BaseModel):
                 "vehicle_model": 2023,
             }
         }
+
+class SelectPlanSchema(BaseModel):
+    """This class is the select plan schema."""
+
+    plan_name: str
+
+    class Config:
+        """This class is the schema for plan configuration."""
+
+        from_attributes = constant.STATUS_TRUE
+        extra = "forbid"
+        json_schema_extra = {
+            "example": {
+                "plan_name": "Basic Plan",
+            }
+        }
+
+

@@ -66,6 +66,7 @@ class SignUpService(BaseResponseService):
                     user_type=user_type.value,
                     mobile=data["contact"],
                     profile_image=data["profile_image"],
+                    is_verified=constant.STATUS_TRUE, # TODO: Change this to false when email verification is implemented
                 )
 
             else:
@@ -109,11 +110,13 @@ class SignUpService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
                 )
             otp_code = json.loads(otp_obj.body)["data"]
-            print("++++++++++", otp_code)
+
             # Send Otp in register user email
             html_file = "otp_email_verification.html"
             background_tasks = BackgroundTasks()
             body = {"otp_code": otp_code["otp_code"]}
+            # TODO: Remove this static otp response while email verification is implemented
+            response_data["otp_code"] = otp_code["otp_code"]
             # EmailService().send_mail(mail_config.OTP_MAIL_SUBJECT, body, html_file, user_obj.email)
 
             return self.response(
@@ -205,6 +208,7 @@ class SignUpService(BaseResponseService):
                 user_type=user_type.value,
                 mobile=data["contact"],
                 profile_image=data["profile_image"],
+                is_verified=constant.STATUS_TRUE, # TODO: Change this to false when email verification is implemented
             )
 
             return user_obj

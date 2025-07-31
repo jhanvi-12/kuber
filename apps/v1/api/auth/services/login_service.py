@@ -22,6 +22,9 @@ from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
+from apps.v1.api.auth.models.attribute import UserTypeEnum
+from apps.v1.api.plans.models.model import Plans
+from apps.v1.api.plans.models.method import PlansMethod
 
 
 class LoginService(BaseResponseService):
@@ -47,7 +50,6 @@ class LoginService(BaseResponseService):
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotVerifiedOrFound
                 )
-
             if not check_password_hash(user_obj.password, body["password"]):
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED,
@@ -62,6 +64,7 @@ class LoginService(BaseResponseService):
                     "user_type": user_obj.user_type.value,
                 }
             )
+
             data = jsonable_encoder(user_obj)
             data.pop("password")
             data["profile_image"] = (
@@ -69,6 +72,13 @@ class LoginService(BaseResponseService):
                 if data["profile_image"]
                 else constant.STATUS_NULL
             )
+
+            # TODO : Add driver plan details in response
+            if user_obj.user_type == UserTypeEnum.DRIVER:
+                plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
+                    db, user_obj.id
+                )
+                data["plan_details"] = jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
 
             token = JWTOAuth2().encode_access_token(token_data)
             data["access_token"] = (

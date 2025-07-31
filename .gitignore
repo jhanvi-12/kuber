@@ -148,6 +148,7 @@ celerybeat.pid
 
 # Environments
 .env
+kubercab-730b1e547e.json
 .venv/
 env/
 venv/

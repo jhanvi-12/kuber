@@ -1,6 +1,7 @@
 """This module is used to implement driver specific table functionality."""
 
-from sqlalchemy import Boolean, Column, Enum, Integer, String, Text, DateTime
+from sqlalchemy import Boolean, Column, Enum, Integer, String, Text, DateTime, Float
+from sqlalchemy.orm import relationship
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from config.db_session import Base
@@ -50,4 +51,25 @@ class Driver(Base, TimestampMixin):
     )
     license_expiry_date = Column(
         DateTime, nullable=constant.STATUS_TRUE, doc="Driver license expiry date"
+    )
+    latitude = Column(
+        Float, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
+    )
+    longitude = Column(
+        Float, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
+    )
+    device_token = Column(
+        String(255), nullable=constant.STATUS_TRUE, doc="Device token for push notifications"
+    )
+    is_active = Column(
+        Boolean, default=constant.STATUS_FALSE, doc="Whether driver is active or not"
+    )
+
+    # Relationship with Plans model
+    plans = relationship("Plans", back_populates="driver", cascade="all, delete-orphan")
+    review = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=0.0,
+        doc="Average rating of the driver",
     )

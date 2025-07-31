@@ -25,6 +25,8 @@ STATUS_SEVEN = 7
 STATUS_EIGHT = 8
 STATUS_NINE = 9
 STATUS_TEN = 10
+STATUS_TWELVE = 12
+FLOAT_FIVE = 5.0
 
 # Http status code
 STATUS_CODE_200 = 200
@@ -122,3 +124,9 @@ VIEW_SEED = "view_seed"
 
 # Declare data types constants
 EMPTY_LIST = []
+
+
+# Ride Status Constants
+RIDE_REQUEST_TITLE = "New Ride Request"
+MAX_DISTANCE = 0.1
+MIN_DISTANCE = 0.02

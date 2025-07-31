@@ -1,10 +1,13 @@
 """This module is responsible to contain API's endpoint"""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, UploadFile, File, Form
-from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from core.utils import constant_variable as constant
+
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form, Request,
+                     UploadFile)
+from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import EmailStr
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from apps.v1.api.auth import schema
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.auth.services.login_service import LoginService
@@ -14,7 +17,6 @@ from apps.v1.api.auth.services.user_profile_service import UserProfileService
 from apps.v1.api.auth.services.verify_otp_service import VerifyOtpService
 from apps.v1.api.pagination_service import oauth2
 from config import db_config
-from pydantic import EmailStr
 from core.utils.token_authentication import JWTOAuth2
 
 ## Load API's

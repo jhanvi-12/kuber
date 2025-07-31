@@ -12,14 +12,14 @@ Functions:
 """
 
 import logging
-
-from fastapi import FastAPI, Request
+import asyncio
+from fastapi import FastAPI
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from apps.v1.api.auth.view import authrouter
 from apps.v1.api.driver.view import driverrouter
+from apps.v1.api.ride.view import riderouter
 from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
@@ -39,7 +39,9 @@ def init_routers(app_: FastAPI) -> None:
     app_.include_router(
         driverrouter, prefix=f"{constant_variable.API_V1}/driver", tags=["Driver"]
     )
-
+    app_.include_router(
+        riderouter, prefix=f"{constant_variable.API_V1}/user", tags=["Ride"]
+    )
 
 def make_middleware() -> list[Middleware]:
     """
@@ -64,9 +66,6 @@ def make_middleware() -> list[Middleware]:
     return middleware
 
 
-# TODO: Redis Cache Implement
-
-
 def create_app() -> FastAPI:
     """
     Create and configure a new FastAPI application instance.
@@ -87,4 +86,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-logger = logging.getLogger(__name__)
