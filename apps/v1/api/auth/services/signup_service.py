@@ -150,7 +150,8 @@ class SignUpService(BaseResponseService):
         """
         try:
             # Generate a random OTP code
-            otp_code = self.generate_otp_code()
+            # otp_code = self.generate_otp_code()
+            otp_code = 1234 # TODO: Remove this static otp response while email verification is implemented
             driver_id, user_id = (
                 (user_obj.id, constant.STATUS_NULL)
                 if user_obj.user_type == UserTypeEnum.DRIVER.value

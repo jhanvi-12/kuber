@@ -14,17 +14,17 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 from werkzeug.security import check_password_hash
 
+from apps.v1.api.auth.models.attribute import UserTypeEnum
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.plans.models.method import PlansMethod
+from apps.v1.api.plans.models.model import Plans
 from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
-from apps.v1.api.auth.models.attribute import UserTypeEnum
-from apps.v1.api.plans.models.model import Plans
-from apps.v1.api.plans.models.method import PlansMethod
 
 
 class LoginService(BaseResponseService):
@@ -57,13 +57,11 @@ class LoginService(BaseResponseService):
                 )
 
             # Generate auth2 token
-            token_data = str(
-                {
+            token_data = {
                     "user_id": user_obj.id,
                     "email": user_obj.email,
                     "user_type": user_obj.user_type.value,
                 }
-            )
 
             data = jsonable_encoder(user_obj)
             data.pop("password")
