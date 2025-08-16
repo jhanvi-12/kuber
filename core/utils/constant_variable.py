@@ -124,6 +124,7 @@ VIEW_SEED = "view_seed"
 
 # Declare data types constants
 EMPTY_LIST = []
+EMPTY_DICT = {}
 
 
 # Ride Status Constants

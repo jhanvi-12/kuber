@@ -6,9 +6,10 @@ refresh tokens, encoding and decoding reset password and email confirmation toke
 and verifying access tokens.
 """
 
-from datetime import datetime, timedelta
+import json
 import os
-import ast
+from datetime import datetime, timedelta
+
 import jwt
 from fastapi import APIRouter, status
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -36,18 +37,19 @@ class JWTOAuth2:
             JWT Token string
         """
         try:
+            print("Encoding access token with identity:", identity)
             now = datetime.now()
             payload = {
                 "iss": "Your-Issuer",  # Set your issuer here
                 "iat": now.timestamp(),  # Created date of token
-                "sub": identity,  # The subject of the token (the user whom it identifies)
+                "sub": json.dumps(identity),  # The subject of the token (the user whom it identifies)
             }
-
-            return jwt.encode(
+            token = jwt.encode(
                 payload,
-                jwt_config.SIGNIN_SECRET_KEY,
+                jwt_config.SIGNIN_SECRET_KEY.strip(),
                 algorithm=jwt_config.JWT_ALGORITHM,
             )
+            return token
         except:
             return StandardResponse(
                 status=status.HTTP_400_BAD_REQUEST,
@@ -71,7 +73,7 @@ class JWTOAuth2:
         payload = jwt.decode(
             token, jwt_config.SIGNIN_SECRET_KEY, algorithms=jwt_config.JWT_ALGORITHM
         )
-        return ast.literal_eval(payload["sub"])
+        return json.loads(payload["sub"])
 
     def decode_reset_password_token(self, token: str, max_age: int = None):
         """

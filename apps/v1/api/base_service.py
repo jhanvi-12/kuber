@@ -46,7 +46,7 @@ class BaseResponseService:
             StandardResponse: The standard response object.
         """
         return StandardResponse(
-            status_code, data or constant.EMPTY_LIST, message, cookies
+            status_code, data or constant.EMPTY_DICT, message, cookies
         ).make
 
     def convert_datetime_format(self, data):

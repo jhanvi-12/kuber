@@ -2,8 +2,7 @@
 
 from typing import Optional
 
-from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form, Request,
-                     UploadFile)
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,7 +102,8 @@ async def forgot_password_api(
     Args:
         body (ForgotPasswordSchema): The request body containing reset password schema.
         db (AsyncSession): The database session.
-        authorize (HTTPAuthorizationCredentials, optional): The authorization header containing JWT token. Defaults to Depends(oauth2).
+        authorize (HTTPAuthorizationCredentials, optional): The authorization header 
+        containing JWT token. Defaults to Depends(oauth2).
     Returns:
         StandardResponse: The response object with status and message.
     """
@@ -115,8 +115,9 @@ async def forgot_password_api(
 
 @authrouter.post("/reset/password")
 async def reset_password_api(
-    body: schema.ResetPasswordSchema, db: AsyncSession = Depends(getdb),
-    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+    body: schema.ResetPasswordSchema,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
     """Reset password for user.
 
@@ -125,7 +126,9 @@ async def reset_password_api(
         db (AsyncSession, optional): database session Defaults to Depends(getdb).
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
-    response = await ResetPasswordService().get_reset_password_service(db, body, current_user)
+    response = await ResetPasswordService().get_reset_password_service(
+        db, body, current_user
+    )
     return response
 
 
