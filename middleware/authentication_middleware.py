@@ -51,6 +51,7 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/v1/auth/register",
             "/v1/auth/login",
+            "/v1/auth/otp/request",
             "/v1/auth/otp/verify",
             "/v1/driver/check/plan_expiry",
             "/v1/user/ride",

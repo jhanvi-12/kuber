@@ -1,16 +1,14 @@
 """This module is responsible for the OTP services"""
 
-from datetime import datetime, timedelta
-
+import json
 from fastapi import status
+from fastapi.background import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.v1.api.auth.models.attribute import UserTypeEnum
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import OtpVerification
-from apps.v1.api.auth.services.login_service import LoginService
 from apps.v1.api.base_service import BaseResponseService
-from core.utils import constant_variable as constant
+from core.utils import db_method
 from core.utils.message_variable import ErrorMessage, InfoMessage
 
 
@@ -35,40 +33,85 @@ class VerifyOtpService(BaseResponseService):
             email = body["email"]
             otp_code = body["otp"]
             # Fetch user by email
-            user_obj = await LoginService().get_user_by_email(db, email)
+            user_obj = await UserAuthMethod(OtpVerification).find_by_user_email(
+                db, email, otp_code
+            )
             if not user_obj:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotVerifiedOrFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.otpExpiredOrInvalid
                 )
 
-            driver_id, user_id = (
-                (user_obj.id, constant.STATUS_NULL)
-                if user_obj.user_type.value == UserTypeEnum.DRIVER.value
-                else (constant.STATUS_NULL, user_obj.id)
-            )
-
-            # Fetch OTP verification record
-            otp_record = await UserAuthMethod(
-                OtpVerification
-            ).find_user_by_otp_reference(db, otp_code, user_id, driver_id)
-            if not otp_record:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidOtp
-                )
-
-            # Check if OTP is expired
-            if datetime.now() > otp_record.expires_at:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpExpired
-                )
-
-            user_obj.is_verified = constant.STATUS_TRUE
-            db.add(user_obj)
-
-            await db.commit()
             # OTP is valid
             return self.response(status.HTTP_200_OK, InfoMessage.otpVerified)
 
+        except Exception:
+            return self.response(
+                status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
+            )
+
+    async def create_otp_code_service(self, db: AsyncSession, email):
+        """
+        Generates and saves a one-time password (OTP) for the given email.
+
+        Args:
+            db (AsyncSession): The database session.
+            email (str): The email address of the user.
+
+        Returns:
+            str: The generated OTP code.
+        """
+        try:
+            # Generate a random OTP code
+            # otp_code = self.generate_otp_code()
+            otp_code = 1234  # TODO: Remove this static otp response while email verification is implemented
+            # Save the OTP code in the database
+            otp_obj = OtpVerification(email=email, otp_code=otp_code)
+            if not await db_method.DataBaseMethod(OtpVerification).save(otp_obj, db):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
+                )
+
+            await db.commit()
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.otpGenerationSuccess,
+                {"otp_code": otp_code},
+            )
+        except Exception:
+            return self.response(
+                status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
+            )
+
+    async def request_otp_service(self, db: AsyncSession, body):
+        """Generates and sends a new OTP to the user.
+
+        Args:
+            db (AsyncSession): The database session.
+            body (EmailStr): email of the user
+        """
+        try:
+            body = body.dict()
+            email = body["email"]
+
+            # Generate otp for the user
+            otp_obj = await self.create_otp_code_service(db, email)
+            if otp_obj.status_code != status.HTTP_200_OK:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
+                )
+            otp_code = json.loads(otp_obj.body)["data"]
+
+            # Send Otp in register user email
+            # html_file = "otp_email_verification.html"
+            # background_tasks = BackgroundTasks()
+            data = {"otp_code": otp_code["otp_code"]}
+            # TODO: Remove this static otp response while email verification is implemented
+            # Send OTP to the user's email after AWS SES service is configured.
+            # EmailService().send_mail(mail_config.OTP_MAIL_SUBJECT, data, html_file, email)
+
+            return self.response(
+                status.HTTP_200_OK, InfoMessage.otpGenerationSuccess, data
+            )
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain

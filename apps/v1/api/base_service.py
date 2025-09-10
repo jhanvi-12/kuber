@@ -156,13 +156,8 @@ class BaseResponseService:
         try:
             # Remove any spaces or special characters
             mobile_number = ''.join(filter(str.isdigit, mobile_number))
-            
-            # Check if the number starts with a valid country code (e.g., +91 for India)
-            if mobile_number.startswith('91'):
-                # For Indian numbers, total length should be 12 (including country code)
-                return len(mobile_number) == 12
-            else:
-                # For other numbers, check if length is between 10 and 15 digits
-                return 10 <= len(mobile_number) <= 15
+            if len(mobile_number) != 10:
+                return False
+            return True
         except Exception:
             return False

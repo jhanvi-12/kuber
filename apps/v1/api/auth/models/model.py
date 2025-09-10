@@ -16,7 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    Float
+    Double
 )
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
@@ -51,14 +51,11 @@ class User(TimestampMixin, Base):
     profile_image = Column(
         Text, nullable=constant.STATUS_TRUE, doc="Image URL of user."
     )
-    is_verified = Column(
-        Boolean, default=constant.STATUS_FALSE, doc="Whether user is verified or not."
-    )
     latitude = Column(
-        Float, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
+        Double, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
     )
     longitude = Column(
-        Float, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
+        Double, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
     address = Column(
         String(255), nullable=constant.STATUS_TRUE, doc="Address of the user."
@@ -82,6 +79,7 @@ class OtpVerification(Base, TimestampMixin):
         nullable=constant.STATUS_FALSE,
         autoincrement=constant.STATUS_TRUE,
     )
+    email = Column(String(150), nullable=constant.STATUS_FALSE)
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),

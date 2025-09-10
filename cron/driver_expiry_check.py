@@ -83,4 +83,3 @@ async def setup_driver_expiry_cron():
     # Start the scheduler
     scheduler.start()
 
-asyncio.run(setup_driver_expiry_cron())
