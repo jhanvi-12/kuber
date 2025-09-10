@@ -43,6 +43,7 @@ class InfoMessage:
     driverReachedSuccessfully = "Driver has reached your location successfully!"
     driverTrackingSuccess = "Driver tracking information retrieved successfully!"
     rideCancelledSuccessfully = "Ride cancelled successfully!"
+    numberChanged = "Number changed successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -93,5 +94,6 @@ class ErrorMessage:
     rideNotFound = "Ride not found with the provided ID."
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
     userOrDriverNotFound = "User or driver not found with the provided details."
+    otpExpiredOrInvalid = "OTP is either expired or invalid."
 
 

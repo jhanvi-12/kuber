@@ -23,7 +23,6 @@ class RegisterResSchema(Schema):
     email = fields.Email(required=True)
     mobile = fields.Str(required=True)
     profile_image = fields.Str(required=True)
-    is_verified = fields.Bool(required=True)
     created_at = fields.DateTime(required=True)
     updated_at = fields.DateTime(required=True)
     user_type = fields.Str(required=True)

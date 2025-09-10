@@ -2,23 +2,23 @@
 This module defines the service for admin user signup, including the creation of new admin users.
 """
 
-import uuid
 import json
-from fastapi import BackgroundTasks, status, Response
+import uuid
+
+from fastapi import Response, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 from werkzeug.security import generate_password_hash
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from apps.v1.api.auth.models.method import UserAuthMethod
-from apps.v1.api.auth.models.model import OtpVerification, User
+from apps.v1.api.auth.models.model import User
 from apps.v1.api.auth.serializer import RegisterResSchema
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
-from config import aws_config, mail_config
-from core.utils import DataBaseMethod, db_method, ValidationMethods
+from config import aws_config
+from core.utils import DataBaseMethod, ValidationMethods
 from core.utils import constant_variable as constant
-from core.utils.email_service import EmailService
 from core.utils.message_variable import ErrorMessage, InfoMessage
 
 
@@ -65,8 +65,7 @@ class SignUpService(BaseResponseService):
                     password=data["hashed_password"],
                     user_type=user_type.value,
                     mobile=data["contact"],
-                    profile_image=data["profile_image"],
-                    is_verified=constant.STATUS_TRUE, # TODO: Change this to false when email verification is implemented
+                    profile_image=data["profile_image"]
                 )
 
             else:
@@ -103,22 +102,6 @@ class SignUpService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.errGeneratingRes
                 )
 
-            # Generate otp for the user
-            otp_obj = await self.create_otp_code_service(db, user_obj)
-            if otp_obj.status_code != status.HTTP_200_OK:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
-                )
-            otp_code = json.loads(otp_obj.body)["data"]
-
-            # Send Otp in register user email
-            html_file = "otp_email_verification.html"
-            background_tasks = BackgroundTasks()
-            body = {"otp_code": otp_code["otp_code"]}
-            # TODO: Remove this static otp response while email verification is implemented
-            response_data["otp_code"] = otp_code["otp_code"]
-            # EmailService().send_mail(mail_config.OTP_MAIL_SUBJECT, body, html_file, user_obj.email)
-
             return self.response(
                 status.HTTP_201_CREATED,
                 InfoMessage.userSignupSuccess,
@@ -135,46 +118,6 @@ class SignUpService(BaseResponseService):
             return self.response(
                 status.HTTP_400_BAD_REQUEST,
                 ErrorMessage.generalTryAgain,
-            )
-
-    async def create_otp_code_service(self, db: AsyncSession, user_obj):
-        """
-        Generates and saves a one-time password (OTP) for the given email.
-
-        Args:
-            db (AsyncSession): The database session.
-            email (str): The email address of the user.
-
-        Returns:
-            str: The generated OTP code.
-        """
-        try:
-            # Generate a random OTP code
-            # otp_code = self.generate_otp_code()
-            otp_code = 1234 # TODO: Remove this static otp response while email verification is implemented
-            driver_id, user_id = (
-                (user_obj.id, constant.STATUS_NULL)
-                if user_obj.user_type == UserTypeEnum.DRIVER.value
-                else (constant.STATUS_NULL, user_obj.id)
-            )
-            # Save the OTP code in the database
-            otp_obj = OtpVerification(
-                user_id=user_id, driver_id=driver_id, otp_code=otp_code
-            )
-            if not await db_method.DataBaseMethod(OtpVerification).save(otp_obj, db):
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
-                )
-
-            await db.commit()
-            return self.response(
-                status.HTTP_200_OK,
-                InfoMessage.otpGenerationSuccess,
-                {"otp_code": otp_code},
-            )
-        except Exception:
-            return self.response(
-                status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
             )
 
     async def register_driver_service(
@@ -208,8 +151,7 @@ class SignUpService(BaseResponseService):
                 password=data["hashed_password"],
                 user_type=user_type.value,
                 mobile=data["contact"],
-                profile_image=data["profile_image"],
-                is_verified=constant.STATUS_TRUE, # TODO: Change this to false when email verification is implemented
+                profile_image=data["profile_image"]
             )
 
             return user_obj

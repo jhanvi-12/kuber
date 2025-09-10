@@ -29,7 +29,6 @@ async def create_admin_api(
     full_name: str = Form(...),
     email: EmailStr = Form(...),
     password: str = Form(...),
-    confirm_password: str = Form(...),
     mobile: str = Form(...),
     user_type: attribute.UserTypeEnum = Form(...),
     profile_image: UploadFile = File(None),
@@ -49,7 +48,6 @@ async def create_admin_api(
         "full_name": full_name,
         "email": email,
         "password": password,
-        "confirm_password": confirm_password,
         "mobile": mobile,
         "user_type": user_type,
     }
@@ -131,6 +129,24 @@ async def reset_password_api(
     )
     return response
 
+@authrouter.post("/otp/request")
+async def request_otp_api(
+    body: schema.RequestOtpSchema,
+    db: AsyncSession = Depends(getdb),
+):
+    """
+    Resend OTP API
+    Args:
+        body (ResendOtpSchema): The body containing resend OTP schema.
+        background_tasks (BackgroundTasks): Background tasks for sending email.
+        db (AsyncSession, optional): database session Defaults to Depends(getdb).
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    response = await VerifyOtpService().request_otp_service(
+        db, body
+    )
+    return response
 
 @authrouter.post("/otp/verify")
 async def verify_otp_api(
@@ -196,10 +212,10 @@ async def get_edit_user_profile_api(
     return response
 
 
-@authrouter.post("/change/number")
+@authrouter.post("/change_number")
 async def change_number_api(
     request: Request,
-    number: str = Form(...),
+    body: schema.ChangeNumberSchema,
     authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
     db: AsyncSession = Depends(getdb),
 ):
@@ -214,6 +230,7 @@ async def change_number_api(
         StandardResponse: The response object with status and message.
     """
     current_user = request.state.user_data
-    response = await UserProfileService().get_change_number_service(
-        db, current_user, number
+    response = await UserProfileService().change_user_number_service(
+        db, current_user, body.model_dump()
     )
+    return response

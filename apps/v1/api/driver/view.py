@@ -20,7 +20,7 @@ driverrouter = APIRouter()
 getdb = db_config.get_db
 
 
-@driverrouter.post("/vehicle/details")
+@driverrouter.post("/vehicle_details")
 async def driver_vehicle_details_api(
     body: schema.DriverVehicleDetailsSchema,
     request: Request,
@@ -46,7 +46,7 @@ async def driver_vehicle_details_api(
     return response
 
 
-@driverrouter.get("/vehicle/details")
+@driverrouter.get("/vehicle_details")
 async def get_driver_vehicle_details_api(
     request: Request,
     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
@@ -69,7 +69,7 @@ async def get_driver_vehicle_details_api(
     return response
 
 
-@driverrouter.post("/upload/vehicle/docs")
+@driverrouter.post("/vehicle_docs")
 async def upload_driver_vehicle_docs(
     request: Request,
     db: AsyncSession = Depends(getdb),

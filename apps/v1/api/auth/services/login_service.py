@@ -48,7 +48,7 @@ class LoginService(BaseResponseService):
             user_obj = await self.get_verified_user_by_email(db, body["email"])
             if not user_obj:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotVerifiedOrFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
                 )
             if not check_password_hash(user_obj.password, body["password"]):
                 return self.response(

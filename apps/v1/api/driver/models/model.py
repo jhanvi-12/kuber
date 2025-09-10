@@ -1,6 +1,16 @@
 """This module is used to implement driver specific table functionality."""
 
-from sqlalchemy import Boolean, Column, Enum, Integer, String, Text, DateTime, Float
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Double,
+    Enum,
+    Float,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
@@ -35,9 +45,6 @@ class Driver(Base, TimestampMixin):
     profile_image = Column(
         Text, nullable=constant.STATUS_TRUE, doc="Image URL of user."
     )
-    is_verified = Column(
-        Boolean, default=constant.STATUS_FALSE, doc="Whether user is verified or not."
-    )
     notification_flag = Column(
         Boolean,
         default=constant.STATUS_TRUE,
@@ -53,13 +60,15 @@ class Driver(Base, TimestampMixin):
         DateTime, nullable=constant.STATUS_TRUE, doc="Driver license expiry date"
     )
     latitude = Column(
-        Float, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
+        Double, nullable=constant.STATUS_TRUE, doc="Current latitude of the driver"
     )
     longitude = Column(
-        Float, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
+        Double, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
     device_token = Column(
-        String(255), nullable=constant.STATUS_TRUE, doc="Device token for push notifications"
+        String(255),
+        nullable=constant.STATUS_TRUE,
+        doc="Device token for push notifications",
     )
     is_active = Column(
         Boolean, default=constant.STATUS_FALSE, doc="Whether driver is active or not"

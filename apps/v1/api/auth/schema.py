@@ -1,8 +1,9 @@
 """This module is for swager and request parameter schema"""
 
-
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, constr, field_validator
+
 from core.utils import constant_variable as constant
 from core.utils.validation import ValidationMethods
 
@@ -27,14 +28,16 @@ class CreateRegisterSchema(BaseModel):
                 "email": "abc123@example.com",
                 "password": "Password@123",
                 "confirm_password": "Password@123",
-                "mobile": "1234567890"
+                "mobile": "1234567890",
             }
         }
+
 
 class UpdateRegisterSchema(BaseModel):
     """
     Schema for updating an customer and driver.
     """
+
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
@@ -42,6 +45,7 @@ class UpdateRegisterSchema(BaseModel):
 
     class Config:
         """This class is the schema for admin update configuration."""
+
         from_attributes = constant.STATUS_TRUE
         extra = "forbid"
         json_schema_extra = {
@@ -49,18 +53,20 @@ class UpdateRegisterSchema(BaseModel):
                 "full_name": "Jane Doe",
                 "email": "abc123@example.com",
                 "password": "Password@123",
-                "mobile": "1234567890"
+                "mobile": "1234567890",
             }
         }
 
+
 class LoginSchema(BaseModel):
-    """This class represents the login schema.
-    """
+    """This class represents the login schema."""
+
     email: EmailStr
     password: str
 
     class Config:
         """This class is the schema for user configuration."""
+
         from_attributes = constant.STATUS_TRUE
         extra = "forbid"
         json_schema_extra = {
@@ -71,8 +77,10 @@ class LoginSchema(BaseModel):
     def password_validation(cls, v):
         return ValidationMethods().validate_password(v)
 
+
 class ForgotPasswordSchema(BaseModel):
     """Schema for forgot password request."""
+
     email: EmailStr
 
     model_config = ConfigDict(
@@ -85,13 +93,16 @@ class ForgotPasswordSchema(BaseModel):
         },
     )
 
+
 class VerifyOtpSchema(BaseModel):
     """This class is used to verify OTP."""
+
     email: EmailStr
     otp: int
 
     class Config:
         """This class is the schema for user configuration."""
+
         model_config = ConfigDict(
             from_attributes=constant.STATUS_TRUE,
             extra="forbid",
@@ -100,11 +111,13 @@ class VerifyOtpSchema(BaseModel):
                     "email": "abc@example.com",
                     "otp": 1234,
                 }
-            }
+            },
         )
+
 
 class ResetPasswordSchema(BaseModel):
     """This class is used to reset password."""
+
     old_password: str
     new_password: str
     confirm_password: str
@@ -118,17 +131,20 @@ class ResetPasswordSchema(BaseModel):
                 "new_password": "Password@123",
                 "confirm_password": "Password@123",
             }
-        }
+        },
     )
+
 
 class EditProfileSchema(BaseModel):
     """Schema for editing user profile."""
+
     profile_image: Optional[str] = constant.STATUS_NULL
     full_name: Optional[str] = constant.STATUS_NULL
     email: Optional[EmailStr] = constant.STATUS_NULL
 
     class Config:
         """Schema configuration."""
+
         extra = "forbid"
         from_attributes = constant.STATUS_TRUE
         json_schema_extra = {
@@ -138,3 +154,29 @@ class EditProfileSchema(BaseModel):
                 "email": "john@gmail.com",
             }
         }
+
+
+class RequestOtpSchema(BaseModel):
+    """Schema for requesting OTP."""
+
+    email: EmailStr
+
+    class Config:
+        """Schema configuration."""
+
+        extra = "forbid"
+        from_attributes = constant.STATUS_TRUE
+        json_schema_extra = {"example": {"email": "hopper@gmail.com"}}
+
+
+class ChangeNumberSchema(BaseModel):
+    """Schema for changing user number."""
+
+    number: str
+
+    class Config:
+        """Schema configuration."""
+
+        extra = "forbid"
+        from_attributes = constant.STATUS_TRUE
+        json_schema_extra = {"example": {"number": "9123456789"}}
