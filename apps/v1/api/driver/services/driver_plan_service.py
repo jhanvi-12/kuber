@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.base_service import BaseResponseService
+from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.driver.services.driver_firebase_notification import \
+    DriverFirebaseNotification
+from apps.v1.api.plans.models.method import PlansMethod
 from apps.v1.api.plans.models.model import Plans
 from core.utils import constant_variable as constant
 from core.utils.db_method import DataBaseMethod
 from core.utils.message_variable import *
-from apps.v1.api.plans.models.method import PlansMethod
-from apps.v1.api.plans.models.model import Plans
-from apps.v1.api.driver.models.model import Driver
-from apps.v1.api.driver.services.driver_firebase_notification import DriverFirebaseNotification
 
 # Plan details: name -> {price, validity_days}
 PLAN_DETAILS = {
@@ -42,7 +42,7 @@ class DriverPlanService(BaseResponseService):
                 )
 
             # check if the driver already has a plan
-            existing_plan = await UserAuthMethod(Plans).find_plan_by_driver_id(
+            existing_plan = await PlansMethod(Plans).find_plan_by_driver_id(
                 db, driver_id
             )
             if existing_plan:
@@ -111,10 +111,10 @@ class DriverPlanService(BaseResponseService):
                     InfoMessage.plansChecked,
                     {"expired_count": expired_count},
                 )
-
-            return self.response(
-                status.HTTP_200_OK, InfoMessage.noPlansExpired, {"expired_count": 0}
-            )
+            else:
+                return self.response(
+                    status.HTTP_200_OK, InfoMessage.noPlansExpired, {"expired_count": expired_count}
+                )
 
         except Exception:
             return self.response(

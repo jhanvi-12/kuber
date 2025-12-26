@@ -1,7 +1,5 @@
 """This module is responsible to contain API's endpoint"""
 
-from typing import Optional
-
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import EmailStr
@@ -88,10 +86,9 @@ async def login_api(body: schema.LoginSchema, db: AsyncSession = Depends(getdb))
 #     return response
 
 
-@authrouter.post("/forgot/password")
+@authrouter.post("/forgot_password")
 async def forgot_password_api(
     body: schema.ForgotPasswordSchema,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(getdb),
 ):
     """
@@ -105,13 +102,13 @@ async def forgot_password_api(
     Returns:
         StandardResponse: The response object with status and message.
     """
-    response = await ResetPasswordService().get_forgot_password_service(
-        db, body.dict(), background_tasks
+    response = await VerifyOtpService().request_otp_service(
+        db, body
     )
     return response
 
 
-@authrouter.post("/reset/password")
+@authrouter.post("/reset_password")
 async def reset_password_api(
     body: schema.ResetPasswordSchema,
     db: AsyncSession = Depends(getdb),
@@ -129,7 +126,7 @@ async def reset_password_api(
     )
     return response
 
-@authrouter.post("/otp/request")
+@authrouter.post("/otp_request")
 async def request_otp_api(
     body: schema.RequestOtpSchema,
     db: AsyncSession = Depends(getdb),
@@ -148,7 +145,7 @@ async def request_otp_api(
     )
     return response
 
-@authrouter.post("/otp/verify")
+@authrouter.post("/otp_verify")
 async def verify_otp_api(
     body: schema.VerifyOtpSchema, db: AsyncSession = Depends(getdb)
 ):
@@ -182,7 +179,7 @@ async def get_user_profile_api(
     return response
 
 
-@authrouter.put("/user/edit/profile")
+@authrouter.put("/user/edit_profile")
 async def get_edit_user_profile_api(
     request: Request,
     full_name: str = Form(None),

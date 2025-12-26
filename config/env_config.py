@@ -20,6 +20,8 @@ DATABASE_PORT = os.environ.get("DATABASE_PORT")
 BACKEND_URL = os.environ.get("BACKEND_URL")
 SOCKET_SERVER_PORT = os.environ.get("SOCKET_SERVER_PORT")
 SOCKET_SERVER_HOST = os.environ.get("SOCKET_SERVER_HOST")
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 
 
 ## WKHTMLOPDF details ##

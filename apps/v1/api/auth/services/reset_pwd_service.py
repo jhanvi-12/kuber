@@ -46,11 +46,10 @@ class ResetPasswordService(BaseResponseService):
         """
         try:
             body = body.dict() if hasattr(body, "dict") else body
-            old_password = body.get("old_password")
             new_password = body.get("new_password")
             confirm_password = body.get("confirm_password")
 
-            if not old_password or not new_password or not confirm_password:
+            if not new_password or not confirm_password:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.allFieldsRequired
                 )
@@ -71,11 +70,6 @@ class ResetPasswordService(BaseResponseService):
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
                 )
 
-            if not check_password_hash(user_obj.password, old_password):
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.oldPwdIncorrect
-                )
-
             user_obj.password = generate_password_hash(new_password)
             if not await DataBaseMethod(type(user_obj)).save(user_obj, db):
                 return self.response(
@@ -91,7 +85,7 @@ class ResetPasswordService(BaseResponseService):
             )
 
     async def get_forgot_password_service(
-        self, db: AsyncSession, body: dict, background_tasks: BackgroundTasks
+        self, db: AsyncSession, body: dict
     ):
         """
         This function responds to a request forgot password
