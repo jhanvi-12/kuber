@@ -179,4 +179,4 @@ class ChangeNumberSchema(BaseModel):
 
         extra = "forbid"
         from_attributes = constant.STATUS_TRUE
-        json_schema_extra = {"example": {"number": "9123456789"}}
+        json_schema_extra = {"example": {"mobile": "9123456789"}}

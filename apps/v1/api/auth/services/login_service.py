@@ -71,7 +71,6 @@ class LoginService(BaseResponseService):
                 else constant.STATUS_NULL
             )
 
-            # TODO : Add driver plan details in response
             if user_obj.user_type == UserTypeEnum.DRIVER:
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id

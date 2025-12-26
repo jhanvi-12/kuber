@@ -43,7 +43,7 @@ class InfoMessage:
     driverReachedSuccessfully = "Driver has reached your location successfully!"
     driverTrackingSuccess = "Driver tracking information retrieved successfully!"
     rideCancelledSuccessfully = "Ride cancelled successfully!"
-    numberChanged = "Number changed successfully!"
+    numberChanged = "Mobile Number changed successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
