@@ -79,8 +79,8 @@ class UserProfileService(BaseResponseService):
                 file_obj = user_obj.profile_image
 
             user_obj.profile_image = file_obj
-            user_obj.full_name = body.get("full_name", user_obj.full_name)
-            user_obj.email = body.get("email", user_obj.email)
+            user_obj.full_name = body.get("full_name") if body.get("full_name") is not None else user_obj.full_name
+            user_obj.email = body.get("email") if body.get("email") is not None else user_obj.email
 
             model = (
                 Driver
@@ -94,6 +94,9 @@ class UserProfileService(BaseResponseService):
                 )
 
             data = jsonable_encoder(user_obj)
+            data["profile_image"] = (
+                    f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
+            )
             data.pop("password")
             return self.response(status.HTTP_200_OK, InfoMessage.userUpdated, data)
         except Exception:
@@ -107,8 +110,8 @@ class UserProfileService(BaseResponseService):
         """This method is used to initiate the change of user's mobile number by generating and sending OTP to user's email."""
         try:
             # Validate mobile number
-            number = body.get("number")
-            if not self.validate_mobile_number(number):
+            mobile = body.get("mobile")
+            if not self.validate_mobile_number(mobile):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidMobileNumber
                 )
@@ -119,7 +122,7 @@ class UserProfileService(BaseResponseService):
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
 
-            user_obj.mobile = number
+            user_obj.mobile = mobile
             if not await DataBaseMethod(type(user_obj)).save(user_obj, db):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.errorSavingUser
@@ -133,7 +136,6 @@ class UserProfileService(BaseResponseService):
                 )
             return self.response(status.HTTP_200_OK, InfoMessage.numberChanged, data)
         except Exception as e:
-            print(f"Error in get_change_number_service: {str(e)}")
             return self.response(
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
             )

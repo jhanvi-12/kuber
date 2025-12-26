@@ -185,9 +185,9 @@ async def get_user_profile_api(
 @authrouter.put("/user/edit/profile")
 async def get_edit_user_profile_api(
     request: Request,
-    full_name: Optional[str] = Form(None),
-    email: Optional[EmailStr] = Form(None),
-    profile_image: Optional[UploadFile] = File(None),
+    full_name: str = Form(None),
+    email: EmailStr = Form(None),
+    profile_image: UploadFile = File(None),
     authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
     db: AsyncSession = Depends(getdb),
 ):
