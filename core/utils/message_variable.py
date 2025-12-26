@@ -44,6 +44,7 @@ class InfoMessage:
     driverTrackingSuccess = "Driver tracking information retrieved successfully!"
     rideCancelledSuccessfully = "Ride cancelled successfully!"
     numberChanged = "Mobile Number changed successfully!"
+    emailTemplateSubject = "Your Kuber Cab OTP verification code"
 
 class ErrorMessage:
     """This class represents a user error message."""

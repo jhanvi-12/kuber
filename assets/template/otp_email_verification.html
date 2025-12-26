@@ -1,115 +1,130 @@
-<html>
-  <body>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Verification OTP</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #f2f2f2;">
     <div
       style="
-        max-width: 600px;
-        margin: auto;
+        margin: 20px auto;
+        background-color: #f2f2f2;
+        padding: 0;
         text-align: center;
-        border: 3px solid #0a689b;
-        background: #f2f2f2;
-        padding: 15px 20px;
-        border-radius: 8px;
-        font-family: Arial, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
       "
     >
-      <!-- Logo Section -->
-      <div class="logo">
-        <img src="{{logo_image}}" alt="Kuber cab" width="250" />
+      <!-- Header -->
+      <div
+        style="
+          background-color: #7159E3; /* Violet */
+        "
+      >
+      <!-- Logo -->
+        <div style="margin-bottom: 15px;">
+          <img
+            src="{{logo_image}}"
+            alt="Kuber"
+            width="150"
+            style="max-width: 100%; height: auto;"
+          />
+        </div>
       </div>
 
-      <!-- Greeting -->
-      <p
-        style="
-          color: #0a689b;
-          font-weight: 700;
-          margin: 10px 0;
-          font-size: 22px;
-        "
-      >
-        Hello!
-      </p>
+      <!-- Body Content -->
+      <div style="padding: 20px;">
 
-      <!-- OTP Section -->
-      <p
-        style="
-          color: #333;
-          font-weight: 600;
-          font-size: 18px;
-          margin: 10px 0;
-        "
-      >
-        Your OTP code for verification is:
-      </p>
-      <p
-        style="
-          font-size: 26px;
-          font-weight: bold;
-          color: #0a689b;
-          margin: 15px 0;
-          padding: 10px;
-          background: #ffffff;
-          display: inline-block;
-          border-radius: 5px;
-          border: 2px dashed #0a689b;
-        "
-      >
-        {{otp_code}}
-      </p>
-
-      <p
-        style="
-          color: #666;
-          font-size: 16px;
-          font-weight: 500;
-          margin: 5px 0;
-        "
-      >
-        This OTP is valid for 5 minutes. Do not share it with anyone.
-      </p>
-
-      <!-- Support Information -->
-      <p
-        style="
-          font-size: 16px;
-          color: #666;
-          margin: 15px 0 5px;
-        "
-      >
-        If you did not request this OTP, please ignore this email.
-      </p>
-
-      <p
-        style="
-          font-size: 16px;
-          font-weight: 500;
-          color: #666;
-        "
-      >
-        For any queries, contact us at:
-        <a
-          href="mailto:kuber@gmail.co"
+        <!-- OTP Message -->
+        <p
           style="
-            color: #0a689b;
-            text-decoration: underline;
+            color: #333333;
+            font-size: 18px;
             font-weight: 600;
+            margin: 10px 0;
           "
         >
-          kuber@gmail.co
-        </a>
-      </p>
+          Your OTP code for verification is:
+        </p>
 
-      <!-- Closing Message -->
-      <p
-        style="
-          font-weight: 500;
-          color: #666;
-          margin-top: 15px;
-          font-size: 16px;
-        "
-      >
-        Thank you,<br />
-        Kuber Cab Team.
-      </p>
+        <!-- OTP Code -->
+        <div
+          style="
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 15px 0;
+          "
+        >
+          <span
+            style="
+              font-size: 35px;
+              font-weight: bold;
+              color: #7159E3;
+              letter-spacing: 2px;
+            "
+          >
+            {{OTP}}
+          </span>
+        </div>
+
+        <!-- OTP Info -->
+        <p
+          style="
+            color: #666666;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 8px 0;
+          "
+        >
+          This OTP is valid for <strong>2 minutes</strong>.  
+          Please do not share it with anyone.
+        </p>
+
+        <!-- Warning -->
+        <p
+          style="
+            color: #666666;
+            font-size: 16px;
+            margin: 35px 0 5px;
+          "
+        >
+          If you did not request this OTP, please ignore this email.
+        </p>
+
+        <!-- Support -->
+        <p
+          style="
+            color: #666666;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 5px 0 15px;
+          "
+        >
+          For any queries, contact us at:
+          <a
+            href="mailto:kubercab.info@gmail.com"
+            style="
+              color: #0a689b;
+              text-decoration: underline;
+              font-weight: 600;
+            "
+          >
+            kubercab.info@gmail.com
+          </a>
+        </p>
+
+        <!-- Footer -->
+        <p
+          style="
+            color: #666666;
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 15px;
+          "
+        >
+          Thank you<br />
+        </p>
+      </div>
     </div>
   </body>
 </html>

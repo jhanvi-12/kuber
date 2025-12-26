@@ -1,13 +1,15 @@
 """This module is responsible for the OTP services"""
 
 import json
+
 from fastapi import status
-from fastapi.background import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import OtpVerification
 from apps.v1.api.base_service import BaseResponseService
+from apps.v1.api.sendgrid_email_service import send_otp_email
+from config import aws_config
 from core.utils import db_method
 from core.utils.message_variable import ErrorMessage, InfoMessage
 
@@ -62,8 +64,7 @@ class VerifyOtpService(BaseResponseService):
         """
         try:
             # Generate a random OTP code
-            # otp_code = self.generate_otp_code()
-            otp_code = 1234  # TODO: Remove this static otp response while email verification is implemented
+            otp_code = self.generate_otp_code()
             # Save the OTP code in the database
             otp_obj = OtpVerification(email=email, otp_code=otp_code)
             if not await db_method.DataBaseMethod(OtpVerification).save(otp_obj, db):
@@ -102,13 +103,14 @@ class VerifyOtpService(BaseResponseService):
             otp_code = json.loads(otp_obj.body)["data"]
 
             # Send Otp in register user email
-            # html_file = "otp_email_verification.html"
-            # background_tasks = BackgroundTasks()
             data = {"otp_code": otp_code["otp_code"]}
-            # TODO: Remove this static otp response while email verification is implemented
-            # Send OTP to the user's email after AWS SES service is configured.
-            # EmailService().send_mail(mail_config.OTP_MAIL_SUBJECT, data, html_file, email)
+            # Send OTP to the user's email using sendgrid.
+            email_res = send_otp_email(email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO)
 
+            if not email_res:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
+                )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.otpGenerationSuccess, data
             )

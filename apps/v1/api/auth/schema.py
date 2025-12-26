@@ -118,7 +118,6 @@ class VerifyOtpSchema(BaseModel):
 class ResetPasswordSchema(BaseModel):
     """This class is used to reset password."""
 
-    old_password: str
     new_password: str
     confirm_password: str
 
@@ -127,7 +126,6 @@ class ResetPasswordSchema(BaseModel):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "old_password": "password@123",
                 "new_password": "Password@123",
                 "confirm_password": "Password@123",
             }
@@ -172,7 +170,7 @@ class RequestOtpSchema(BaseModel):
 class ChangeNumberSchema(BaseModel):
     """Schema for changing user number."""
 
-    number: str
+    mobile: str
 
     class Config:
         """Schema configuration."""
