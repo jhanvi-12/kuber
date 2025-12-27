@@ -102,8 +102,6 @@ class VerifyOtpService(BaseResponseService):
                 )
             otp_code = json.loads(otp_obj.body)["data"]
 
-            # Send Otp in register user email
-            data = {"otp_code": otp_code["otp_code"]}
             # Send OTP to the user's email using sendgrid.
             email_res = send_otp_email(email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO)
 
@@ -112,7 +110,7 @@ class VerifyOtpService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
                 )
             return self.response(
-                status.HTTP_200_OK, InfoMessage.otpGenerationSuccess, data
+                status.HTTP_200_OK, InfoMessage.otpGenerationSuccess
             )
         except Exception:
             return self.response(
