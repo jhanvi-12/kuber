@@ -105,7 +105,7 @@ class LoginService(BaseResponseService):
         try:
             body = body.dict()
             # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(db, body["email"])
+            user_obj = await self.get_verified_user_by_email(db, current_user["email"])
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
