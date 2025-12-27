@@ -70,6 +70,25 @@ async def login_api(body: schema.LoginSchema, db: AsyncSession = Depends(getdb))
     response = await LoginService().get_login_service(db, body)
     return response
 
+@authrouter.post("/device/register")
+async def register_device_api(
+    body: schema.DeviceTokenSchema,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """This API route is used to generate device token for the user.
+
+    Args:
+        body (schema.DeviceTokenSchema): body which contains device token payload
+        db (AsyncSession, optional): ).The database session.
+        authorize (HTTPAuthorizationCredentials, optional): The authorization header 
+        containing JWT token. Defaults to Depends(oauth2).
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await LoginService().create_device_token(db, body, current_user)
+    return response
 
 # @authrouter.post("/logout")
 # async def logout_api(

@@ -39,7 +39,7 @@ class Driver(Base, TimestampMixin):
     )
     user_type = Column(
         Enum(UserTypeEnum),
-        default=UserTypeEnum.CUSTOMER,
+        default=UserTypeEnum.DRIVER,
         doc="User type for the users.",
     )
     profile_image = Column(
@@ -81,4 +81,20 @@ class Driver(Base, TimestampMixin):
         nullable=constant.STATUS_TRUE,
         default=0.0,
         doc="Average rating of the driver",
+    )
+    # 🔹 Device-related fields (NEW)
+    device_token = Column(
+        String(255),
+        nullable=constant.STATUS_TRUE,
+        doc="FCM / push notification device token",
+    )
+    platform = Column(
+        String(20),
+        nullable=constant.STATUS_TRUE,
+        doc="Device platform (android / ios / web)",
+    )
+    device_id = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        doc="Unique device identifier",
     )

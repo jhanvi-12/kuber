@@ -22,7 +22,7 @@ class ValidationMethods:
             raise ValueError(f"{field} must be an integer")
         return v
 
-    def validate_password(self, value):
+    def validate_passwords(self, value):
 
         # Check length
         if len(value) <= 7:
@@ -44,6 +44,19 @@ class ValidationMethods:
         if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'"|,.<>/?]', value):
             raise ValueError("Password must contain at least one special character")
 
+        return value
+
+    def validate_password(self, value: str) -> str:
+        """
+        Validate that the password is provided and not empty.
+        Args:
+            value (str): Password value
+        Raises:
+            ValueError: If password is missing or empty
+        """
+        if not value or not value.strip():
+            raise ValueError("Password is required and cannot be empty.")
+        
         return value
 
     def sanitize_value(self, values):

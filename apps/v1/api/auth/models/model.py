@@ -65,6 +65,22 @@ class User(TimestampMixin, Base):
         default=constant.STATUS_TRUE,
         doc="Whether user wants to receive notifications.",
     )
+    # 🔹 Device-related fields (NEW)
+    device_token = Column(
+        String(255),
+        nullable=constant.STATUS_TRUE,
+        doc="FCM / push notification device token",
+    )
+    platform = Column(
+        String(20),
+        nullable=constant.STATUS_TRUE,
+        doc="Device platform (android / ios / web)",
+    )
+    device_id = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        doc="Unique device identifier",
+    )
 
 
 class OtpVerification(Base, TimestampMixin):
