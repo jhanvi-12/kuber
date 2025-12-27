@@ -77,6 +77,24 @@ class LoginSchema(BaseModel):
     def password_validation(cls, v):
         return ValidationMethods().validate_password(v)
 
+class DeviceTokenSchema(BaseModel):
+    """Schema for generating device token"""
+
+    device_token: str
+    platform: str
+    device_id: int
+
+    model_config = ConfigDict(
+        from_attributes=constant.STATUS_TRUE,
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "device_token": "qwerrtrr2g",
+                "platform": "android",
+                "device_id": 1
+            }
+        },
+    )
 
 class ForgotPasswordSchema(BaseModel):
     """Schema for forgot password request."""

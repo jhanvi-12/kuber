@@ -94,6 +94,52 @@ class LoginService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
+    async def create_device_token(self, db: AsyncSession, body, current_user):
+        """This service is used to create a device token
+
+        Args:
+            db (AsyncSession): The database session
+            body (dict): payoad of device token
+            current_user (dict): current_user for which need to generate device token
+        """
+        try:
+            body = body.dict()
+            # check if user email is exists or not.
+            user_obj = await self.get_verified_user_by_email(db, body["email"])
+            if not user_obj:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
+                )
+
+            device_token = body.get("device_token", None)
+            platform = body.get("platform", None)
+            device_id = body.get("device_id", None)
+            res = await UserAuthMethod(
+                User
+                if current_user["user_type"] == UserTypeEnum.CUSTOMER.value
+                else Driver
+            ).create_or_find_device_token(db, user_obj.id, device_token, platform, device_id)
+
+            data = jsonable_encoder(res)
+            data.pop("password")
+            data["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
+                if data["profile_image"]
+                else constant.STATUS_NULL
+            )
+
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.deviceTokenGenerated,
+                data,
+            )
+
+        except Exception:
+            return self.response(
+                status.HTTP_400_BAD_REQUEST,
+                ErrorMessage.generalTryAgain,
+            )
+
     async def get_user_by_email(self, db: AsyncSession, email: str):
         """
         Finds a user by email.

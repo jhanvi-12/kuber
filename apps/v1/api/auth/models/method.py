@@ -107,3 +107,35 @@ class UserAuthMethod:
             )
             result = await db.execute(stmt)
             return result.scalars().all()
+
+    async def create_or_find_device_token(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        device_token: str,
+        platform: str | None = None,
+        device_id: int | None = None,
+    ):
+        """
+        Create or update device token for a user.
+
+        - If token already exists → return user
+        - If token is different → update it
+        """
+
+        stmt = select(self.model).where(self.model.id == user_id)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            return None
+
+        user.device_token = device_token  # create OR update
+        user.platform = platform
+        user.device_id = device_id
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        return user
