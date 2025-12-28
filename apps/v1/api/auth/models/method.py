@@ -114,7 +114,7 @@ class UserAuthMethod:
         user_id: int,
         device_token: str,
         platform: str | None = None,
-        device_id: int | None = None,
+        device_id: str | None = None,
     ):
         """
         Create or update device token for a user.

@@ -79,7 +79,7 @@ class User(TimestampMixin, Base):
         doc="Device platform (android / ios / web)",
     )
     device_id = Column(
-        Integer,
+        String(20),
         nullable=constant.STATUS_TRUE,
         doc="Unique device identifier",
     )
