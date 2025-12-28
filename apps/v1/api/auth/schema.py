@@ -82,7 +82,7 @@ class DeviceTokenSchema(BaseModel):
 
     device_token: str
     platform: str
-    device_id: int
+    device_id: str
 
     model_config = ConfigDict(
         from_attributes=constant.STATUS_TRUE,
@@ -91,7 +91,7 @@ class DeviceTokenSchema(BaseModel):
             "example": {
                 "device_token": "qwerrtrr2g",
                 "platform": "android",
-                "device_id": 1
+                "device_id": "abc"
             }
         },
     )
