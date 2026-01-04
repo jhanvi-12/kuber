@@ -45,7 +45,7 @@ class LoginService(BaseResponseService):
         try:
             body = body.dict()
             # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(db, body["email"])
+            user_obj = await self.get_verified_user_by_email(db, body["email"], body.get("user_type"))
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
@@ -64,6 +64,10 @@ class LoginService(BaseResponseService):
                 }
 
             data = jsonable_encoder(user_obj)
+            # if user_type == "customer":
+            #     user_obj.ride_otp = self.generate_otp_code()
+            #     await db.commit()
+
             data.pop("password")
             data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
@@ -71,7 +75,7 @@ class LoginService(BaseResponseService):
                 else constant.STATUS_NULL
             )
 
-            if user_obj.user_type == UserTypeEnum.DRIVER:
+            if user_obj.user_type == UserTypeEnum.DRIVER.value:
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id
                 )
@@ -105,7 +109,7 @@ class LoginService(BaseResponseService):
         try:
             body = body.dict()
             # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(db, current_user["email"])
+            user_obj = await self.get_verified_user_by_email(db, current_user["email"], current_user["user_type"])
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
@@ -120,18 +124,14 @@ class LoginService(BaseResponseService):
                 else Driver
             ).create_or_find_device_token(db, user_obj.id, device_token, platform, device_id)
 
-            data = jsonable_encoder(res)
-            data.pop("password")
-            data["profile_image"] = (
-                f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
-                if data["profile_image"]
-                else constant.STATUS_NULL
-            )
-
+            if not res:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Error while generating Device token"
+                )
             return self.response(
                 status.HTTP_200_OK,
-                InfoMessage.deviceTokenGenerated,
-                data,
+                InfoMessage.deviceTokenGenerated
             )
 
         except Exception:
@@ -156,7 +156,7 @@ class LoginService(BaseResponseService):
             user_obj = await UserAuthMethod(Driver).find_by_email(db, email)
         return user_obj
 
-    async def get_verified_user_by_email(self, db: AsyncSession, email: str):
+    async def get_verified_user_by_email(self, db: AsyncSession, email: str, user_type: str):
         """
         Finds a user by email.
 
@@ -167,7 +167,6 @@ class LoginService(BaseResponseService):
         Returns:
             User: The user object if found, else None.
         """
-        user_obj = await UserAuthMethod(User).find_verified_email_user(db, email)
-        if not user_obj:
-            user_obj = await UserAuthMethod(Driver).find_verified_email_user(db, email)
+        user_type_model = Driver if user_type == "driver" else User
+        user_obj = await UserAuthMethod(user_type_model).find_verified_email_user(db, email)
         return user_obj

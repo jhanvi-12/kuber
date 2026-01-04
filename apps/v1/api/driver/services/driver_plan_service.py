@@ -6,7 +6,6 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.driver.services.driver_firebase_notification import \

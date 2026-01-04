@@ -33,6 +33,10 @@ def main(env: str, debug: bool):
         workers=1,
     )
 
+# from socket_client import connect_socket
+# @app.on_event("startup")
+# async def startup_event():
+#     await connect_socket()
 
 if __name__ == "__main__":
     main()

@@ -65,12 +65,7 @@ class Driver(Base, TimestampMixin):
     longitude = Column(
         Double, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
-    device_token = Column(
-        String(255),
-        nullable=constant.STATUS_TRUE,
-        doc="Device token for push notifications",
-    )
-    is_active = Column(
+    is_available = Column(
         Boolean, default=constant.STATUS_FALSE, doc="Whether driver is active or not"
     )
 

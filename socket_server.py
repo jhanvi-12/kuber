@@ -1,13 +1,15 @@
 """This module is responsible for the socket server implementation."""
 
 from urllib.parse import parse_qs
-
+import json
 import socketio
 from aiohttp import web
 
 from core.utils.helper import send_request
 from config import env_config
 from core.utils.message_variable import *
+from core.utils.token_authentication import JWTOAuth2
+from core.redis_repo import RedisDriverRepo
 
 backend_url = env_config.BACKEND_URL
 
@@ -47,6 +49,93 @@ async def connect(sid, environ):
 async def disconnect(sid):
     """Handle client disconnection."""
     print(f"Client disconnected: {sid}")
+
+
+@sio.on("driver_location_update")
+async def driver_location_update(sid, data):
+    """
+    Driver sends live location updates every 3–5 seconds
+    """
+    try:
+        # 1️⃣ Get authenticated driver_id from socket session
+        session = await sio.get_session(sid)
+        token = session.get("token")
+
+        if not token:
+            await sio.emit(
+                "auth_error",
+                {"code": "TOKEN_MISSING", "message": "Authentication required"},
+                room=sid
+                )
+            return False 
+
+        try:
+            driver_payload = JWTOAuth2().verify_access_token(token.split(" ")[1])
+        except Exception:
+            await sio.emit(
+                "auth_error",
+                {"code": "TOKEN_INVALID", "message": "Session expired or Invalid!"},
+                room=sid
+            )
+            return False
+        driver_id = driver_payload["user_id"]
+
+        # 2️⃣ Extract & validate payload
+        data = json.loads(data)
+        lat = data.get("lat")
+        lng = data.get("lng")
+        ride_type = data.get("ride_type")
+        device_token = data.get("device_token")
+
+        if lat is None or lng is None or not ride_type:
+            return  # silently ignore bad packets
+
+        lat = float(lat)
+        lng = float(lng)
+
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return
+
+        # 3️⃣ Update GEO location (RAW COMMAND – SAFE)
+        RedisDriverRepo.set_available(
+            driver_id,
+            lat,
+            lng, ride_type, device_token
+        )
+
+        await sio.emit(
+            "driver_location",
+            {
+                "driver_id": driver_id,
+                "lat": lat,
+                "lng": lng
+            }
+        )
+
+    except Exception as e:
+        # Log only — never crash socket server
+        print("driver_location_update error:", str(e))
+
+@sio.on("join_ride", namespace="/")
+async def join_ride(sid, data):
+    data = json.loads(data)
+    ride_id = data["ride_id"]
+
+    await sio.enter_room(
+        sid,
+        f"ride:{ride_id}",
+        namespace="/"
+    )
+
+    # ✅ confirmation event (VERY IMPORTANT)
+    await sio.emit(
+        "join_ride_success",
+        {
+            "ride_id": ride_id,
+            "room": f"ride:{ride_id}"
+        },
+        to=sid
+    )
 
 
 # 1st event

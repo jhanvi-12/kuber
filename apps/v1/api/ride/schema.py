@@ -9,9 +9,9 @@ class LocationSchema(BaseModel):
     """
     Schema for location coordinates and address
     """
+    status: int = Field(..., description="Status of the driver.")
     latitude: float = Field(..., description="Latitude coordinate of the location")
     longitude: float = Field(..., description="Longitude coordinate of the location")
-    address: str = Field(..., description="Full address of the location")
 
     class Config:
         """
@@ -19,9 +19,9 @@ class LocationSchema(BaseModel):
         """
         json_schema_extra = {
             "example": {
+                "status": 1 or 0,
                 "latitude": 19.0760,
-                "longitude": 72.8777,
-                "address": "Mumbai, Maharashtra, India"
+                "longitude": 72.8777
             }
         }
 
@@ -30,8 +30,12 @@ class BookRideSchema(BaseModel):
     Schema for booking a new ride
     """
     ride_fare: float = Field(..., description="Fare amount for the ride")
-    source: LocationSchema = Field(..., description="Pickup location details")
-    destination: LocationSchema = Field(..., description="Drop location details")
+    pickup_latitude: float = Field(..., description="Pickup latitude of customer")
+    pickup_longitude: float = Field(..., description="Pickup longitude of customer")
+    pickup_address: str = Field(..., description="Pickup Address of customer")
+    destination_latitude: float = Field(..., description="destinatio latitude of customer")
+    destination_longitude: float = Field(..., description="destinatio longitude of customer")
+    destination_address: str = Field(..., description="destinatio Address of customer")
     ride_type: str = Field(..., description="Type of ride")
 
     class Config:
@@ -41,17 +45,13 @@ class BookRideSchema(BaseModel):
         json_schema_extra = {
             "example": {
                 "ride_fare": 150.50,
-                "source": {
-                    "latitude": 19.0760,
-                    "longitude": 72.8777,
-                    "address": "Mumbai, Maharashtra, India"
-                },
-                "destination": {
-                    "latitude": 19.2183,
-                    "longitude": 72.9781,
-                    "address": "Thane, Maharashtra, India"
-                },
-                "ride_type": "car/bike/auto"
+                "pickup_latitude": 19.0760,
+                "pickup_longitude": 72.8777,
+                "pickup_address": "Mumbai, Maharashtra, India",
+                "destination_latitude": 19.2183,
+                "destination_longitude": 72.9781,
+                "destination_address": "Thane, Maharashtra, India",
+                "ride_type": "car"
             }
         }
 

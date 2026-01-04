@@ -34,6 +34,7 @@ class InfoMessage:
     notificationSentToDrivers = "Notification sent to drivers successfully!"
     rideBookedSuccessfully = "Ride booked successfully!"
     rideRequestSent = "Ride request sent. Waiting for driver acceptance..."
+    findingDrivers = "Searching for available drivers for your ride."
     rideAcceptedSuccessfully = "Ride accepted successfully!"
     driverHeading = "Driver is heading to your location."
     reqAccepted = "Request is accepted by the driver."

@@ -132,11 +132,10 @@ async def select_plan_api(
     return response
 
 
-@driverrouter.put("/status/update")
+@driverrouter.post("/status/update")
 async def update_driver_status_api(
     request: Request,
-    driver_status: int,
-    body : Optional[LocationSchema] = None,
+    body : LocationSchema,
     db: AsyncSession = Depends(getdb),
     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
@@ -154,7 +153,7 @@ async def update_driver_status_api(
     """
     current_user = request.state.user_data
     response = await UpdateDriverStatusService().update_driver_status_service(
-        current_user, db, driver_status, body
+        current_user, db, body
     )
     return response
 

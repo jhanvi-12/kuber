@@ -56,14 +56,14 @@ class Ride(Base, TimestampMixin):
         Float, nullable=constant.STATUS_FALSE, doc="Fare amount for the ride"
     )
 
-    source_latitude = Column(
+    pickup_latitude = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Latitude of ride location"
     )
-    source_longitude = Column(
+    pickup_longitude = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Longitude of ride location"
     )
 
-    source_address = Column(
+    pickup_address = Column(
         String(255), nullable=constant.STATUS_FALSE, doc="Address of the ride location"
     )
     destination_latitude = Column(
@@ -75,9 +75,6 @@ class Ride(Base, TimestampMixin):
 
     destination_address = Column(
         String(255), nullable=constant.STATUS_FALSE, doc="Address of the destination"
-    )
-    ride_otp = Column(
-        Integer, nullable=constant.STATUS_FALSE, doc="4-digit OTP for ride verification"
     )
     cancellation_reason = Column(
         String(150), nullable=constant.STATUS_TRUE, doc="Reason for cancellation"

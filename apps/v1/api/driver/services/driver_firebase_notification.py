@@ -20,15 +20,14 @@ class DriverFirebaseNotification(BaseResponseService):
 
     async def _initialize_firebase(self) -> bool:
         """Initialize Firebase app if not already initialized."""
-        if self._firebase_initialized:
+        try:
+            # ✅ Firebase-safe check
+            if not firebase_admin._apps:
+                cred = credentials.Certificate("kubercab-730b1e547e.json")
+                firebase_admin.initialize_app(cred)
+                logger.info("Firebase initialized successfully.")
             return True
 
-        try:
-            cred = credentials.Certificate("kubercab-730b1e547e.json")
-            firebase_admin.initialize_app(cred)
-            self._firebase_initialized = True
-            logger.info("Firebase initialized successfully.")
-            return True
         except Exception as e:
             logger.error(f"Firebase initialization failed: {str(e)}")
             return False
@@ -46,7 +45,7 @@ class DriverFirebaseNotification(BaseResponseService):
 
     async def send_notification_to_drivers(
         self,
-        drivers: List[Dict],
+        device_token: str,
         title: str,
         body: str,
         data: Optional[Dict] = None
@@ -65,21 +64,12 @@ class DriverFirebaseNotification(BaseResponseService):
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain
             )
-
-        for driver in drivers:
-            fcm_token = driver.get("device_token")
-            driver_id = driver.get("driver_id")
-
-            # if not fcm_token or not isinstance(fcm_token, str):
-            #     logger.warning(f"Missing or invalid token for driver {driver_id}. Skipping.")
-            #     continue
-
-            try:
-                message = self._build_message(fcm_token, title, body, data)
-                messaging.send(message)
-                logger.info(f"Notification sent to driver {driver_id}.")
-            except Exception as e:
-                logger.error(f"Failed to send notification to driver {driver_id}: {str(e)}")
+        print("*************Hello******")
+        try:
+            message = self._build_message(device_token, title, body, data)
+            messaging.send(message)
+            logger.info(f"Notification sent to driver.")
+        except Exception as e:
+            logger.error(f"Failed to send notification to driver : {str(e)}")
 
         return self.response(status.HTTP_200_OK, InfoMessage.notificationSentToDrivers)
-

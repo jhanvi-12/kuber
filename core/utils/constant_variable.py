@@ -104,30 +104,13 @@ TIME_WINDOW = 60
 SMS_CHANNEL = "sms"
 EMAIL_CHANNEL = "email"
 
-
-# Permissions for the application
-CREATE_CLIENT = "create_client"
-UPDATE_CLIENT = "update_client"
-DELETE_CLIENT = "delete_client"
-VIEW_CLIENT  = "view_client"
-CREATE_STUDENT = "create_student"
-UPDATE_STUDENT = "update_student"
-DELETE_STUDENT = "delete_student"
-CREATE_LICENSE = "create_license"
-UPDATE_LICENSE = "update_license"
-VIEW_LICENSE = "view_license"
-SELECT_LICENSE = "select_license"
-ASSIGN_LICENSE = "assign_license"
-VIEW_STUDENT = "view_student"
-CREATE_SEED = "create_seed"
-VIEW_SEED = "view_seed"
-
 # Declare data types constants
 EMPTY_LIST = []
 EMPTY_DICT = {}
 
 
 # Ride Status Constants
-RIDE_REQUEST_TITLE = "New Ride Request"
+RIDE_REQUEST_TITLE = "New Ride Nearby 🚗"
 MAX_DISTANCE = 0.1
 MIN_DISTANCE = 0.02
+RIDE_REQUEST_BODY = "A rider is waiting nearby. Tap to accept before it’s gone."
