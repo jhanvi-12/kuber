@@ -1,15 +1,22 @@
 """This module is responsible for the socket server implementation."""
 
-from urllib.parse import parse_qs
 import json
+from contextlib import asynccontextmanager
+from urllib.parse import parse_qs
+
 import socketio
 from aiohttp import web
-
-from core.utils.helper import send_request
+from sqlalchemy.ext.asyncio import AsyncSession
+from core.utils import constant_variable
+from apps.v1.api.ride.services.get_ride_details_service import RideDetailService
+from apps.v1.api.ride.services.accept_ride_service import RideAcceptService
 from config import env_config
+from core.redis_repo import RedisDriverRepo, RedisRideRepo
+from core.utils.helper import send_request
 from core.utils.message_variable import *
 from core.utils.token_authentication import JWTOAuth2
-from core.redis_repo import RedisDriverRepo
+from typing import AsyncGenerator
+from config.db_session import session_factory
 
 backend_url = env_config.BACKEND_URL
 
@@ -22,6 +29,19 @@ app = web.Application()
 # Attach the Socket.IO server to the web application
 sio.attach(app)
 
+
+@asynccontextmanager
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """This method is used to create the DB session for the socket events."""
+    async with session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 # Define event handlers
 @sio.event
@@ -50,6 +70,34 @@ async def disconnect(sid):
     """Handle client disconnection."""
     print(f"Client disconnected: {sid}")
 
+async def get_authenticated_user(sid, required=True):
+    """
+    Generic helper to get user/driver from socket session using JWT token.
+
+    Returns payload dict if valid, None otherwise.
+    Emits proper auth_error events if token missing/invalid.
+    """
+    session = await sio.get_session(sid)
+    token = session.get("token")
+
+    if not token:
+        await sio.emit(
+            "auth_error",
+            {"code": "TOKEN_MISSING", "message": "Authentication required"},
+            room=sid
+            )
+        return False 
+
+    try:
+        data = JWTOAuth2().verify_access_token(token.split(" ")[1])
+        return data
+    except Exception:
+        await sio.emit(
+            "auth_error",
+            {"code": "TOKEN_INVALID", "message": "Session expired or Invalid!"},
+            room=sid
+        )
+        return False
 
 @sio.on("driver_location_update")
 async def driver_location_update(sid, data):
@@ -58,27 +106,10 @@ async def driver_location_update(sid, data):
     """
     try:
         # 1️⃣ Get authenticated driver_id from socket session
-        session = await sio.get_session(sid)
-        token = session.get("token")
-
-        if not token:
-            await sio.emit(
-                "auth_error",
-                {"code": "TOKEN_MISSING", "message": "Authentication required"},
-                room=sid
-                )
-            return False 
-
-        try:
-            driver_payload = JWTOAuth2().verify_access_token(token.split(" ")[1])
-        except Exception:
-            await sio.emit(
-                "auth_error",
-                {"code": "TOKEN_INVALID", "message": "Session expired or Invalid!"},
-                room=sid
-            )
-            return False
-        driver_id = driver_payload["user_id"]
+        driver_data = await get_authenticated_user(sid)
+        if not driver_data:
+            return
+        driver_id = driver_data["user_id"]
 
         # 2️⃣ Extract & validate payload
         data = json.loads(data)
@@ -115,6 +146,121 @@ async def driver_location_update(sid, data):
     except Exception as e:
         # Log only — never crash socket server
         print("driver_location_update error:", str(e))
+
+@sio.on("get_ride_details")
+async def get_ride_details(sid, data):
+    """This event is used to get the ride details for the driver."""
+    ride_data = await get_authenticated_user(sid)
+    if not ride_data:
+        return
+
+    data = json.loads(data)
+    ride_id = data["ride_id"]
+    driver_id = ride_data["user_id"]
+    
+    # Calling the BE service to fetch the ride details.
+    async with get_async_session() as db:
+        ride_payload = await RideDetailService().get_ride_details(db, ride_id, driver_id)
+        if ride_payload.status_code != constant_variable.STATUS_CODE_200:
+            await sio.emit("ride_error",
+                               json.loads(ride_payload.body)
+                           )
+        else:
+            await sio.emit(
+                "ride_details", 
+                json.loads(ride_payload.body)["data"],
+                sid)
+
+@sio.on("accept_ride")
+async def accept_ride(sid, data):
+    """This event is used to accept the ride driver."""
+    ride_data = await get_authenticated_user(sid)
+    if not ride_data:
+        return
+
+    data = json.loads(data)
+    ride_id = data["ride_id"]
+    driver_id = ride_data["user_id"]
+    print("DAta", driver_id, ride_id)
+    # STEP 1: Redis lock FIRST
+    if not RedisRideRepo.acquire_lock(ride_id, driver_id):
+        await sio.emit(
+            "ride_already_taken",
+            {"message": ErrorMessage.rideAlreadyAccepted},
+            room=sid
+        )
+        return
+    # Calling the BE service to fetch the ride details.
+    async with get_async_session() as db:
+        ride_payload = await RideAcceptService().ride_accepted_service(db, ride_id, driver_id)
+        if ride_payload.status_code != constant_variable.STATUS_CODE_200:
+            await sio.emit("ride_error",
+                               json.loads(ride_payload.body)
+                           )
+        else:
+            await sio.emit(
+                "ride_accepted",
+                {
+                    "status": InfoMessage.reqAccepted,
+                    "message": InfoMessage.driverHeading,
+                    "data": json.loads(ride_payload.body)["data"],
+                },
+                sid)
+
+@sio.on("reached_location")
+async def reached_location(sid, data):
+    ride_data = await get_authenticated_user(sid)
+    if not ride_data:
+        return
+
+    data = json.loads(data)
+    ride_id = data["ride_id"]
+    driver_id = ride_data["user_id"]
+
+    # Guard 1: ride must exist in Redis
+    # status = RedisRideRepo.get_status(ride_id)
+    # if status != "ACCEPTED":
+    #     await sio.emit(
+    #         "invalid_ride_state",
+    #         {"message": "Ride not in accepted state"},
+    #         room=sid,
+    #         namespace="/driver"
+    #     )
+    #     return
+
+    # Guard 2: same driver only
+    assigned_driver = RedisRideRepo.get_assigned_driver(ride_id)
+    if assigned_driver != driver_id:
+        await sio.emit(
+            "unauthorized_action",
+            {},
+            sid
+        )
+        return
+
+    # ✅ Update Redis
+    RedisRideRepo.update_status(ride_id, "DRIVER_ARRIVED")
+
+    # ✅ Update DB (persistent)
+    async with get_async_session() as db:
+        res = await RideAcceptService().driver_reached_service(
+            db, ride_id, driver_id
+        )
+        if res.status_code != constant_variable.STATUS_CODE_200:
+            await sio.emit("ride_error",
+                            json.loads(res.body)
+                           )
+        else:
+            # 📣 Notify customer
+            await sio.emit(
+                "driver_reached",
+                {
+                    "ride_id": ride_id,
+                    "status": InfoMessage.arrivedNow,
+                    "message": "Driver has arrived at your location"
+                },
+                sid
+            )
 
 @sio.on("join_ride", namespace="/")
 async def join_ride(sid, data):

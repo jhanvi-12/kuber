@@ -39,11 +39,6 @@ class DriverSearchService:
                 f"drivers:geo:{ride_type}", lng, lat, wave, unit="km", count=5
             )
 
-            if not drivers:
-                RedisRideRepo.update_status(ride_id, "FAILED")
-                await RideSocketEmitter.no_driver_found(ride_id)
-                return
-
             # FILTER: only drivers who were NOT notified
             new_drivers = [
                 d

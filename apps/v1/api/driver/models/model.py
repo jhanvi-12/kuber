@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from config.db_session import Base
+from apps.v1.api.plans.models.model import Plans
 from core.db.mixins.timestamp_mixin import TimestampMixin
 from core.utils import constant_variable as constant
 

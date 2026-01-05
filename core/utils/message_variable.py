@@ -40,6 +40,7 @@ class InfoMessage:
     reqAccepted = "Request is accepted by the driver."
     driverArrived = "Driver has arrived to your location."
     arrivedNow = "Arrived now."
+    rideFound = "Ride found"
     rideAndDriverFound = "Ride and driver found successfully!"
     driverReachedSuccessfully = "Driver has reached your location successfully!"
     driverTrackingSuccess = "Driver tracking information retrieved successfully!"
@@ -98,5 +99,5 @@ class ErrorMessage:
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
     userOrDriverNotFound = "User or driver not found with the provided details."
     otpExpiredOrInvalid = "OTP is either expired or invalid."
-
+    driverNotAssignedToRide = "The driver is not assigned to the ride"
 

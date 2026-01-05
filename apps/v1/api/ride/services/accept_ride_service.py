@@ -13,10 +13,63 @@ from apps.v1.api.ride.models.model import Ride
 from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
+from apps.v1.api.auth.models.model import User
 
 
 class RideAcceptService(BaseResponseService):
     """This class is used to define the ride acceptance service methods."""
+
+    async def ride_accepted_service(self, db: AsyncSession, ride_id: int, driver_id: int):
+        """This method is used to update the ride status when driver accept the ride.
+
+        Args:
+            db (AsyncSession): DB session
+            ride_id (int): Ride ID
+            driver_id (int): Driver ID.
+        """
+        try:
+            if not await DriverMethod(Driver).get_driver_by_id(db, driver_id):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
+                )
+            data = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
+            if not data:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                )
+
+            user_data = await DriverMethod(User).get_driver_by_id(db, data.user_id)
+            if not user_data:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
+                )
+
+            # 3️⃣ Allow accept ONLY if finding drivers
+            if data.status != RideStatusEnum.FINDING_DRIVERS.value:
+                return self.response(
+                    status.HTTP_409_CONFLICT,
+                    ErrorMessage.rideAlreadyAccepted
+                )
+
+            data.driver_id = driver_id
+            data.status = RideStatusEnum.ACCEPTED.value
+            db.add(data)
+            await db.commit()
+            response = jsonable_encoder(user_data)
+            response.pop("device_token")
+            response.pop("password")
+            response["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response["profile_image"]}"
+                if response["profile_image"] is not None
+                else None
+            )
+            return self.response(status.HTTP_200_OK, InfoMessage.rideFound, response)
+
+        except Exception:
+            await db.rollback()
+            return self.response(
+                status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
+            )
 
     async def fetch_ride_and_driver(self, db: AsyncSession, ride_id: int, driver_id: int):
         """
@@ -127,7 +180,7 @@ class RideAcceptService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
-    async def driver_reached_service(self, db: AsyncSession, body: dict):
+    async def driver_reached_service(self, db: AsyncSession, ride_id, driver_id):
         """
         Update the ride status when the driver reaches the pickup location.
         Args:
@@ -137,27 +190,38 @@ class RideAcceptService(BaseResponseService):
             StandardResponse: The response object with status and message.
         """
         try:
-            ride_id = body.get("ride_id")
-            driver_id = body.get("driver_id")
-
-            ride, driver = await self.fetch_ride_and_driver(db, ride_id, driver_id)
-
-            if not ride or not driver:
+            ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
+            if not ride:
                 return self.response(
                     status.HTTP_404_NOT_FOUND,
-                    ErrorMessage.rideOrDriverNotFound,
+                    ErrorMessage.rideNotFound
+                )
+
+            # 2️⃣ Validate driver assignment (🔥 MOST IMPORTANT)
+            if ride.driver_id != driver_id:
+                return self.response(
+                    status.HTTP_403_FORBIDDEN,
+                    ErrorMessage.driverNotAssignedToRide
+                )
+
+            # 3️⃣ Fetch driver (optional but safe)
+            driver = await DriverMethod(Driver).get_driver_by_id(db, driver_id)
+            if not driver:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.driverNotFound
                 )
 
             ride.status = RideStatusEnum.REACHED.value
             db.add(ride)
             await db.commit()
 
-            data = self.prepare_response_data(ride, driver)
+            data = jsonable_encoder(driver)
             data["driver_status"] = constant.STATUS_THREE
 
             return self.response(
                 status.HTTP_200_OK,
-                InfoMessage.rideAcceptedSuccessfully,  # You might want a different message for 'reached'
+                InfoMessage.driverArrived,  # You might want a different message for 'reached'
                 data=data,
             )
         except Exception:

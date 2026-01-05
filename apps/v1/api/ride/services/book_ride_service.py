@@ -1,12 +1,14 @@
 """This module is responsible to maintain the book ride service logic."""
 
+import asyncio
 import math
 from datetime import datetime
 from typing import Dict, List
-import asyncio
+
 import numpy as np
 import pandas as pd
 from fastapi import status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.method import UserAuthMethod
@@ -14,17 +16,15 @@ from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.driver.models.model import Driver
-from apps.v1.api.driver.services.driver_firebase_notification import \
-    DriverFirebaseNotification
+from apps.v1.api.driver.services.driver_search_service import \
+    DriverSearchService
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
-from config import aws_config
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
+from core.redis_repo import RedisRideRepo
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
-from core.redis_repo import RedisRideRepo
-from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
-from fastapi.encoders import jsonable_encoder
-from apps.v1.api.driver.services.driver_search_service import DriverSearchService
+
 
 class BookRideService(BaseResponseService):
     """This class is used to define the book ride service methods."""

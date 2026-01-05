@@ -29,12 +29,17 @@ class RedisRideRepo:
         redis_client.expire(key, 300)  # 5 min safety TTL
 
     @classmethod
-    def acquire_lock(cls, ride_id, ttl=30):
+    def acquire_lock(cls, ride_id, driver_id, ttl=300):
         """
         Prevents multiple drivers from accepting same ride
         """
         lock_key = f"ride:lock:{ride_id}"
-        return redis_client.set(lock_key, "1", nx=True, ex=ttl)
+        is_locked = redis_client.setnx(lock_key, driver_id)
+        if not is_locked:
+            return False
+
+        redis_client.expire(lock_key, 300)
+        return True
 
     @classmethod
     def release_lock(cls, ride_id):
@@ -93,6 +98,21 @@ class RedisRideRepo:
             driver_id
         )
 
+    @classmethod
+    def get_assigned_driver(cls, ride_id: int):
+        """
+        Returns the driver_id who has locked/accepted the ride.
+        Returns None if no driver is assigned.
+        """
+        key = f"ride:lock:{ride_id}"
+
+        driver_id = redis_client.get(key)
+        if not driver_id:
+            return None
+
+        # Redis returns bytes → convert to int
+        return int(driver_id)
+
     # -------------------------------
     # Accept Ride (ATOMIC)
     # -------------------------------
@@ -101,10 +121,10 @@ class RedisRideRepo:
         """
         Returns False if ride already accepted
         """
-        if not cls.acquire_lock(ride_id):
+        if not cls.acquire_lock(ride_id, driver_id):
             return False
 
-        redis_client.hset(
+        redis_client.hmset(
             f"ride:search:{ride_id}",
             mapping={
                 "status": "ACCEPTED",
@@ -113,6 +133,12 @@ class RedisRideRepo:
             }
         )
         return True
+
+    @classmethod
+    def mark_rejected(cls, ride_id, driver_id):
+        redis_client.sadd(f"ride:rejected:{ride_id}", driver_id)
+        redis_client.expire(f"ride:rejected:{ride_id}", 300)
+
 
 
 class RedisDriverRepo:
