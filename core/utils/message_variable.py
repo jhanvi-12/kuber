@@ -97,7 +97,9 @@ class ErrorMessage:
     rideAlreadyAssigned = "Ride already assigned to another driver."
     rideNotFound = "Ride not found with the provided ID."
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
+    rideCancelled = "Ride might be cancelled by user."
     userOrDriverNotFound = "User or driver not found with the provided details."
     otpExpiredOrInvalid = "OTP is either expired or invalid."
     driverNotAssignedToRide = "The driver is not assigned to the ride"
+    rideNotAvailable = "Ride not available"
 

@@ -1,6 +1,7 @@
 """This module is used to emit the socket events by API services."""
 
 from socket_server import sio
+from core.utils.message_variable import *
 
 class RideSocketEmitter:
     """This class emits all socket events which are used in ride booking system."""
@@ -15,11 +16,14 @@ class RideSocketEmitter:
         )
 
     @staticmethod
-    async def ride_accepted(ride_id, driver_data):
+    async def ride_accepted(ride_request_id, ride_id, driver_data):
         """This event is emitted when driver accpeted the ride."""
         await sio.emit(
             "ride_accepted",
             {
+                "status": InfoMessage.reqAccepted,
+                "message": InfoMessage.driverHeading,
+                "ride_request_id": ride_request_id,
                 "ride_id": ride_id,
                 "driver": driver_data
             },
@@ -29,7 +33,7 @@ class RideSocketEmitter:
     @staticmethod
     async def no_driver_found(ride_id):
         """This method is used when no drivers are found for the ride."""
-        print("👥 ROOM MEMBERS:", sio.manager.rooms)
+        print("ROOM MEMBERS:", sio.manager.rooms)
         await sio.emit(
             "no_driver_found",
             {

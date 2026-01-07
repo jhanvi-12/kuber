@@ -1,25 +1,29 @@
 """This module is responsible to maintain the ride acceptance service logic."""
 
+from datetime import datetime
+
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.ride.models.attribute import RideStatusEnum
-from apps.v1.api.ride.serializer import RideResponse
 from apps.v1.api.ride.models.model import Ride
+from apps.v1.api.ride.serializer import RideResponse
 from config import aws_config
+from config.redis_config import redis_client
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
-from apps.v1.api.auth.models.model import User
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 
 
 class RideAcceptService(BaseResponseService):
     """This class is used to define the ride acceptance service methods."""
 
-    async def ride_accepted_service(self, db: AsyncSession, ride_id: int, driver_id: int):
+    async def ride_accepted_service(self, db: AsyncSession, ride_request_id: str, current_user):
         """This method is used to update the ride status when driver accept the ride.
 
         Args:
@@ -28,33 +32,82 @@ class RideAcceptService(BaseResponseService):
             driver_id (int): Driver ID.
         """
         try:
-            if not await DriverMethod(Driver).get_driver_by_id(db, driver_id):
+            driver_id = current_user["user_id"]
+            driver_data = DriverMethod(Driver).get_driver_by_id(db, driver_id)
+            if not await driver_data:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
                 )
-            data = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
-            if not data:
+            redis_key = f"ride:search:{ride_request_id}"
+
+            # 1️⃣ Fetch ride request
+            ride_req = redis_client.hgetall(redis_key)
+            if not ride_req:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                 )
 
-            user_data = await DriverMethod(User).get_driver_by_id(db, data.user_id)
+            if ride_req.get("status") != "SEARCHING":
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotAvailable
+                    
+                )
+
+            # Atomic lock (only one driver wins)
+            locked = redis_client.set(
+                f"ride:lock:{ride_request_id}",
+                driver_id,
+                nx=True,
+                ex=600
+            )
+
+            if not locked:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideAlreadyAccepted
+                )
+
+            # Create Ride in DB NOW
+            ride = Ride(
+                user_id=int(ride_req["user_id"]),
+                driver_id=driver_id,
+                pickup_latitude=float(ride_req["pickup_latitude"]),
+                pickup_longitude=float(ride_req["pickup_longitude"]),
+                pickup_address=ride_req["pickup_address"],
+                destination_latitude=float(ride_req["destination_latitude"]),
+                destination_longitude=float(ride_req["destination_longitude"]),
+                destination_address=ride_req["destination_address"],
+                ride_type=ride_req["ride_type"],
+                ride_fare=float(ride_req["ride_fare"]),
+                status=RideStatusEnum.ACCEPTED.value,
+                ride_date=datetime.now(),
+            )
+
+            db.add(ride)
+            await db.commit()
+            await db.refresh(ride)
+
+            user_data = await DriverMethod(User).get_driver_by_id(db, int(ride_req["user_id"]))
             if not user_data:
                 return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideCancelled
                 )
+            # Update Redis state
+            redis_client.hmset(
+                redis_key,
+                mapping={
+                    "status": "ACCEPTED",
+                    "driver_id": driver_id,
+                    "ride_id": ride.id
+                }
+            )
 
-            # 3️⃣ Allow accept ONLY if finding drivers
-            if data.status != RideStatusEnum.FINDING_DRIVERS.value:
-                return self.response(
-                    status.HTTP_409_CONFLICT,
-                    ErrorMessage.rideAlreadyAccepted
-                )
+            # 5️⃣ Emit socket event
+            await RideSocketEmitter.ride_accepted(
+                ride_request_id=ride_request_id,
+                ride_id=ride.id,
+                driver_data=driver_data
+            )
 
-            data.driver_id = driver_id
-            data.status = RideStatusEnum.ACCEPTED.value
-            db.add(data)
-            await db.commit()
             response = jsonable_encoder(user_data)
             response.pop("device_token")
             response.pop("password")
@@ -63,7 +116,8 @@ class RideAcceptService(BaseResponseService):
                 if response["profile_image"] is not None
                 else None
             )
-            return self.response(status.HTTP_200_OK, InfoMessage.rideFound, response)
+            response["ride_fare"] = ride.ride_fare
+            return self.response(status.HTTP_200_OK, InfoMessage.rideAcceptedSuccessfully, response)
 
         except Exception:
             await db.rollback()
@@ -172,56 +226,6 @@ class RideAcceptService(BaseResponseService):
             return self.response(
                 status.HTTP_200_OK,
                 InfoMessage.rideAcceptedSuccessfully,
-                data=data,
-            )
-        except Exception:
-            return self.response(
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-                ErrorMessage.generalTryAgain,
-            )
-
-    async def driver_reached_service(self, db: AsyncSession, ride_id, driver_id):
-        """
-        Update the ride status when the driver reaches the pickup location.
-        Args:
-            db (AsyncSession): The database session.
-            body (dict): The request body containing ride details.
-            Returns:
-            StandardResponse: The response object with status and message.
-        """
-        try:
-            ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
-            if not ride:
-                return self.response(
-                    status.HTTP_404_NOT_FOUND,
-                    ErrorMessage.rideNotFound
-                )
-
-            # 2️⃣ Validate driver assignment (🔥 MOST IMPORTANT)
-            if ride.driver_id != driver_id:
-                return self.response(
-                    status.HTTP_403_FORBIDDEN,
-                    ErrorMessage.driverNotAssignedToRide
-                )
-
-            # 3️⃣ Fetch driver (optional but safe)
-            driver = await DriverMethod(Driver).get_driver_by_id(db, driver_id)
-            if not driver:
-                return self.response(
-                    status.HTTP_404_NOT_FOUND,
-                    ErrorMessage.driverNotFound
-                )
-
-            ride.status = RideStatusEnum.REACHED.value
-            db.add(ride)
-            await db.commit()
-
-            data = jsonable_encoder(driver)
-            data["driver_status"] = constant.STATUS_THREE
-
-            return self.response(
-                status.HTTP_200_OK,
-                InfoMessage.driverArrived,  # You might want a different message for 'reached'
                 data=data,
             )
         except Exception:

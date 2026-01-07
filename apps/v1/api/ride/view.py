@@ -100,6 +100,29 @@ async def driver_reached_api(
     )
     return response
 
+@riderouter.post("/ride_accept")
+async def accept_ride_api(
+    ride_request_id: str,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """Accept Ride API
+
+    Args:
+        ride_request_id (str): Ride ID
+        db (AsyncSession, optional): DB session. Defaults to Depends(getdb).
+        authorize (HTTPAuthorizationCredentials, optional): JWT token to authorize.
+
+    Returns:
+        dict: A response indicating the success or failure of the ride cancellation.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await RideAcceptService().ride_accepted_service(
+        db, ride_request_id, current_user
+    )
+    return response
+
+
 @riderouter.post("/ride/cancel")
 async def cancel_ride_api(
     body: dict = Body(...),

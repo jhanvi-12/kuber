@@ -11,34 +11,50 @@ class RedisRideRepo:
     """This class is used to represenst all ride methods to store data in redis."""
 
     @classmethod
-    def init_search_state(cls, ride_id, pickup_lat, pickup_lng):
+    def init_search_state(cls, ride_request_id: str, user_id: int, payload: dict):
         """Initiate the driver search."""
-        key = f"ride:search:{ride_id}"
+        key = f"ride:search:{ride_request_id}"
 
-        redis_client.hmset(
-            key,
-            mapping={
-                "status": "SEARCHING",
-                "wave": 1,
-                "pickup_lat": pickup_lat,
-                "pickup_lng": pickup_lng,
-                "created_at": int(time.time())
-            }
-        )
+        data = {
+            "status": "SEARCHING",
+            "user_id": user_id,
+            "pickup_latitude": payload["pickup_latitude"],
+            "pickup_longitude": payload["pickup_longitude"],
+            "pickup_address": payload["pickup_address"],
+            "destination_latitude": payload["destination_latitude"],
+            "destination_longitude": payload["destination_longitude"],
+            "destination_address": payload["destination_address"],
+            "ride_type": payload["ride_type"],
+            "ride_fare": payload["ride_fare"],
+            "wave": 1,
+            "created_at": int(time.time()),
+        }
 
-        redis_client.expire(key, 300)  # 5 min safety TTL
+        pipe = redis_client.pipeline()
+
+        # Store ride request
+        pipe.hmset(key, mapping=data)
+
+        # Safety TTL (auto cleanup)
+        pipe.expire(key, 600)  # 10 minutes
+
+        # Cleanup related keys (if any)
+        pipe.delete(f"ride:lock:{ride_request_id}")
+        pipe.delete(f"ride:candidates:{ride_request_id}")
+
+        pipe.execute()
 
     @classmethod
-    def acquire_lock(cls, ride_id, driver_id, ttl=300):
+    def acquire_lock(cls, ride_request_id, driver_id):
         """
         Prevents multiple drivers from accepting same ride
         """
-        lock_key = f"ride:lock:{ride_id}"
+        lock_key = f"ride:lock:{ride_request_id}"
         is_locked = redis_client.setnx(lock_key, driver_id)
         if not is_locked:
             return False
 
-        redis_client.expire(lock_key, 300)
+        redis_client.expire(lock_key, 600)
         return True
 
     @classmethod
@@ -84,27 +100,36 @@ class RedisRideRepo:
         )
 
     @classmethod
-    def add_candidates(cls, ride_id, drivers):
+    def add_candidates(cls, ride_request_id: str, driver_ids: list):
         """This method is used to add drivers with that matching ride_type."""
-        key = f"ride:candidates:{ride_id}"
-        redis_client.sadd(key, *drivers)
-        redis_client.expire(key, 300)
+        key = f"ride:candidates:{ride_request_id}"
+
+        if not driver_ids:
+            return
+
+        pipe = redis_client.pipeline()
+        pipe.sadd(key, *driver_ids)
+
+        # Keep same TTL as ride request (safety)
+        pipe.expire(key, 600)  # 10 minutes
+
+        pipe.execute()
 
     @classmethod
-    def has_driver_been_notified(cls, ride_id, driver_id):
+    def has_driver_been_notified(cls, ride_request_id: str, driver_id):
         """This method is keep track that drivers recevied the notification."""
         return redis_client.sismember(
-            f"ride:candidates:{ride_id}",
+            f"ride:candidates:{ride_request_id}",
             driver_id
         )
 
     @classmethod
-    def get_assigned_driver(cls, ride_id: int):
+    def get_assigned_driver(cls, ride_request_id: str):
         """
         Returns the driver_id who has locked/accepted the ride.
         Returns None if no driver is assigned.
         """
-        key = f"ride:lock:{ride_id}"
+        key = f"ride:lock:{ride_request_id}"
 
         driver_id = redis_client.get(key)
         if not driver_id:
@@ -117,15 +142,15 @@ class RedisRideRepo:
     # Accept Ride (ATOMIC)
     # -------------------------------
     @classmethod
-    def mark_accepted(cls, ride_id, driver_id):
+    def mark_accepted(cls, ride_request_id: str, driver_id: int):
         """
         Returns False if ride already accepted
         """
-        if not cls.acquire_lock(ride_id, driver_id):
+        if not cls.acquire_lock(ride_request_id, driver_id):
             return False
 
         redis_client.hmset(
-            f"ride:search:{ride_id}",
+            f"ride:search:{ride_request_id}",
             mapping={
                 "status": "ACCEPTED",
                 "driver_id": driver_id,
@@ -135,10 +160,16 @@ class RedisRideRepo:
         return True
 
     @classmethod
-    def mark_rejected(cls, ride_id, driver_id):
-        redis_client.sadd(f"ride:rejected:{ride_id}", driver_id)
-        redis_client.expire(f"ride:rejected:{ride_id}", 300)
+    def mark_rejected(cls, ride_request_id, driver_id):
+        """This method is used when ride is rejected by driver"""
+        redis_client.sadd(f"ride:rejected:{ride_request_id}", driver_id)
+        redis_client.expire(f"ride:rejected:{ride_request_id}", 300)
 
+    @classmethod
+    def get_db_ride_id(cls, ride_request_id: str) -> int | None:
+        key = f"ride:search:{ride_request_id}"
+        ride_id = redis_client.hget(key, "ride_id")
+        return int(ride_id) if ride_id else None
 
 
 class RedisDriverRepo:
@@ -174,7 +205,7 @@ class RedisDriverRepo:
         # ✅ Heartbeat
         redis_client.setex(
             f"driver:alive:{driver_id}",
-            300,
+            1000,
             1
         )
 

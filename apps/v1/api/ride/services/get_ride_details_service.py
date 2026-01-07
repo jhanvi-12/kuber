@@ -11,6 +11,9 @@ from apps.v1.api.ride.models.model import Ride
 from config import aws_config
 from core.utils.message_variable import *
 from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.driver.models.method import DriverMethod
+from core.utils import constant_variable as constant
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 
 class RideDetailService(BaseResponseService):
     """This class is used to get the ride details"""
@@ -53,4 +56,54 @@ class RideDetailService(BaseResponseService):
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
+            )
+
+    async def driver_reached_service(self, db: AsyncSession, ride_id, driver_id):
+        """
+        Update the ride status when the driver reaches the pickup location.
+        Args:
+            db (AsyncSession): The database session.
+            body (dict): The request body containing ride details.
+            Returns:
+            StandardResponse: The response object with status and message.
+        """
+        try:
+            ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
+            if not ride:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.rideNotFound
+                )
+
+            # 2️⃣ Validate driver assignment (🔥 MOST IMPORTANT)
+            if ride.driver_id != driver_id:
+                return self.response(
+                    status.HTTP_403_FORBIDDEN,
+                    ErrorMessage.driverNotAssignedToRide
+                )
+
+            # 3️⃣ Fetch driver (optional but safe)
+            driver = await DriverMethod(Driver).get_driver_by_id(db, driver_id)
+            if not driver:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.driverNotFound
+                )
+
+            ride.status = RideStatusEnum.REACHED.value
+            db.add(ride)
+            await db.commit()
+
+            data = jsonable_encoder(driver)
+            data["driver_status"] = constant.STATUS_THREE
+
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.driverArrived,  # You might want a different message for 'reached'
+                data=data,
+            )
+        except Exception:
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain,
             )

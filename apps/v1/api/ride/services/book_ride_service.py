@@ -2,13 +2,12 @@
 
 import asyncio
 import math
-from datetime import datetime
+import uuid
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 from fastapi import status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.method import UserAuthMethod
@@ -19,7 +18,6 @@ from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.driver.services.driver_search_service import \
     DriverSearchService
 from apps.v1.api.ride.models.attribute import RideStatusEnum
-from apps.v1.api.ride.models.model import Ride
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from core.redis_repo import RedisRideRepo
 from core.utils import constant_variable as constant
@@ -171,46 +169,41 @@ class BookRideService(BaseResponseService):
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
-            # Create a new Ride object
-            ride = Ride(
-                user_id=current_user.get("user_id"),
-                pickup_latitude=body.get("pickup_latitude"),
-                pickup_longitude=body.get("pickup_longitude"),
-                pickup_address=body.get("pickup_address"),
-                destination_address=body.get("destination_address"),
-                destination_latitude=body.get("destination_latitude"),
-                destination_longitude=body.get("destination_longitude"),
-                status=RideStatusEnum.FINDING_DRIVERS.value,
-                ride_fare=body["ride_fare"],
-                ride_type=body["ride_type"],
-                ride_date=datetime.now(),
+
+            # Generate a Ride Request ID for the temp in redis.
+            ride_request_id = str(uuid.uuid4())
+            # Store ride request in the redis
+            RedisRideRepo.init_search_state(
+                ride_request_id=ride_request_id,
+                user_id=current_user["user_id"],
+                payload={
+                    "pickup_latitude": body["pickup_latitude"],
+                    "pickup_longitude": body["pickup_longitude"],
+                    "pickup_address": body["pickup_address"],
+                    "destination_latitude": body["destination_latitude"],
+                    "destination_longitude": body["destination_longitude"],
+                    "destination_address": body["destination_address"],
+                    "ride_type": body["ride_type"],
+                    "ride_fare": body["ride_fare"]
+                }
             )
-
-            # Update the user address.
-            user_obj.address = body["pickup_address"]
-
-            # Add the ride to the database
-            db.add(ride)
-            db.add(user_obj)
-            await db.commit()
-            await db.refresh(ride)
-
-            # INIT REDIS SEARCH STATE
-            RedisRideRepo.init_search_state(ride.id, body.get("pickup_latitude"), body.get("pickup_longitude"))
             # Emit searching state
-            await RideSocketEmitter.ride_searching(ride.id)
+            await RideSocketEmitter.ride_searching(ride_request_id)
 
             # Start driver search ASYNC (background)
             asyncio.create_task(DriverSearchService.start_wave(
-                ride.id,
-                ride.ride_type,
+                ride_request_id,
+                body.get("ride_type"),
                 body.get("pickup_latitude"),
                 body.get("pickup_longitude")
             ))
-            data = jsonable_encoder(ride)
 
             return self.response(
-                status.HTTP_200_OK, InfoMessage.findingDrivers, data
+                status.HTTP_200_OK, InfoMessage.findingDrivers, 
+                {
+                    "status": RideStatusEnum.FINDING_DRIVERS.value,
+                    "ride_request_id": ride_request_id
+                }
             )
 
         except Exception:

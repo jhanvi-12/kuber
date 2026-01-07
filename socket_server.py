@@ -9,7 +9,6 @@ from aiohttp import web
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.utils import constant_variable
 from apps.v1.api.ride.services.get_ride_details_service import RideDetailService
-from apps.v1.api.ride.services.accept_ride_service import RideAcceptService
 from config import env_config
 from core.redis_repo import RedisDriverRepo, RedisRideRepo
 from core.utils.helper import send_request
@@ -147,6 +146,8 @@ async def driver_location_update(sid, data):
         # Log only — never crash socket server
         print("driver_location_update error:", str(e))
 
+
+# Remove this event
 @sio.on("get_ride_details")
 async def get_ride_details(sid, data):
     """This event is used to get the ride details for the driver."""
@@ -171,41 +172,34 @@ async def get_ride_details(sid, data):
                 json.loads(ride_payload.body)["data"],
                 sid)
 
-@sio.on("accept_ride")
-async def accept_ride(sid, data):
-    """This event is used to accept the ride driver."""
-    ride_data = await get_authenticated_user(sid)
-    if not ride_data:
-        return
+# @sio.on("accept_ride")
+# async def accept_ride(sid, data):
+#     """This event is used to accept the ride driver."""
+#     ride_data = await get_authenticated_user(sid)
+#     if not ride_data:
+#         return
 
-    data = json.loads(data)
-    ride_id = data["ride_id"]
-    driver_id = ride_data["user_id"]
-    print("DAta", driver_id, ride_id)
-    # STEP 1: Redis lock FIRST
-    if not RedisRideRepo.acquire_lock(ride_id, driver_id):
-        await sio.emit(
-            "ride_already_taken",
-            {"message": ErrorMessage.rideAlreadyAccepted},
-            room=sid
-        )
-        return
-    # Calling the BE service to fetch the ride details.
-    async with get_async_session() as db:
-        ride_payload = await RideAcceptService().ride_accepted_service(db, ride_id, driver_id)
-        if ride_payload.status_code != constant_variable.STATUS_CODE_200:
-            await sio.emit("ride_error",
-                               json.loads(ride_payload.body)
-                           )
-        else:
-            await sio.emit(
-                "ride_accepted",
-                {
-                    "status": InfoMessage.reqAccepted,
-                    "message": InfoMessage.driverHeading,
-                    "data": json.loads(ride_payload.body)["data"],
-                },
-                sid)
+#     data = json.loads(data)
+#     ride_id = data["ride_request_id"]
+#     driver_id = ride_data["user_id"]
+#     print("DAta", driver_id, ride_id)
+
+#     # Calling the BE service to fetch the ride details.
+#     async with get_async_session() as db:
+#         ride_payload = await RideAcceptService().ride_accepted_service(db, ride_id, driver_id)
+#         if ride_payload.status_code != constant_variable.STATUS_CODE_200:
+#             await sio.emit("ride_error",
+#                                json.loads(ride_payload.body)
+#                            )
+#         else:
+#             await sio.emit(
+#                 "ride_accepted",
+#                 {
+#                     "status": InfoMessage.reqAccepted,
+#                     "message": InfoMessage.driverHeading,
+#                     "data": json.loads(ride_payload.body)["data"],
+#                 },
+#                 sid)
 
 @sio.on("reached_location")
 async def reached_location(sid, data):
@@ -214,40 +208,41 @@ async def reached_location(sid, data):
         return
 
     data = json.loads(data)
-    ride_id = data["ride_id"]
+    ride_request_id = data["ride_request_id"]
     driver_id = ride_data["user_id"]
 
     # Guard 1: ride must exist in Redis
-    # status = RedisRideRepo.get_status(ride_id)
-    # if status != "ACCEPTED":
-    #     await sio.emit(
-    #         "invalid_ride_state",
-    #         {"message": "Ride not in accepted state"},
-    #         room=sid,
-    #         namespace="/driver"
-    #     )
-    #     return
+    status = RedisRideRepo.get_status(ride_request_id)
+    if status != "ACCEPTED":
+        await sio.emit(
+            "driver_reached",
+            {"message": "Ride not in accepted state"},
+            room=sid,
+            namespace="/driver"
+        )
+        return
 
     # Guard 2: same driver only
-    assigned_driver = RedisRideRepo.get_assigned_driver(ride_id)
+    assigned_driver = RedisRideRepo.get_assigned_driver(ride_request_id)
     if assigned_driver != driver_id:
         await sio.emit(
-            "unauthorized_action",
-            {},
+            "driver_reached",
+            {"message": "This driver is wrong!"},
             sid
         )
         return
 
     # ✅ Update Redis
-    RedisRideRepo.update_status(ride_id, "DRIVER_ARRIVED")
+    RedisRideRepo.update_status(ride_request_id, "DRIVER_ARRIVED")
 
     # ✅ Update DB (persistent)
     async with get_async_session() as db:
-        res = await RideAcceptService().driver_reached_service(
+        ride_id = RedisRideRepo.get_db_ride_id(ride_request_id)
+        res = await RideDetailService().driver_reached_service(
             db, ride_id, driver_id
         )
         if res.status_code != constant_variable.STATUS_CODE_200:
-            await sio.emit("ride_error",
+            await sio.emit("driver_reached",
                             json.loads(res.body)
                            )
         else:

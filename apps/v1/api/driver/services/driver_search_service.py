@@ -17,6 +17,12 @@ class DriverSearchService:
     MAX_WAVES = 3
     WAVE_DELAY = 7  # seconds
 
+    WAVE_RADIUS = {
+        1: 1,   # 0–1 km
+        2: 3,   # 1–3 km
+        3: 5,   # 3–5 km
+    }
+
     @staticmethod
     async def start_wave(ride_id, ride_type, lat, lng):
         """This method is used to find the drivers in waves from redis
@@ -25,18 +31,19 @@ class DriverSearchService:
             wave = RedisRideRepo.get_wave(ride_id)
             print("*********", wave)
 
-            # 🚫 Stop if ride already accepted / cancelled
+            # Stop if ride already accepted / cancelled
             status = RedisRideRepo.get_status(ride_id)
             if status != "SEARCHING":
                 return
 
             if wave > DriverSearchService.MAX_WAVES:
-                RedisRideRepo.update_status(ride_id, "FAILED")
-                await RideSocketEmitter.no_driver_found(ride_id)
+                print("Waves are completed")
                 return
 
+            radius = DriverSearchService.WAVE_RADIUS[wave]
+
             drivers = redis_client.georadius(
-                f"drivers:geo:{ride_type}", lng, lat, wave, unit="km", count=5
+                f"drivers:geo:{ride_type}", lng, lat, radius, unit="km"
             )
 
             # FILTER: only drivers who were NOT notified
@@ -52,8 +59,7 @@ class DriverSearchService:
 
             pipe = redis_client.pipeline()
 
-            RedisRideRepo.add_candidates(ride_id, drivers)
-            for driver_id in drivers:
+            for driver_id in new_drivers:
                 pipe.hgetall(f"driver:meta:{driver_id}")
             driver_meta_list = pipe.execute()
 
@@ -67,9 +73,9 @@ class DriverSearchService:
                     constant_variable.RIDE_REQUEST_TITLE,
                     constant_variable.RIDE_REQUEST_BODY,
                 )
-                # ✅ MARK AS NOTIFIED (REUSE SAME SET)
+                # MARK AS NOTIFIED (REUSE SAME SET)
                 RedisRideRepo.add_candidates(ride_id, [driver_id])
 
-            # ⏳ Wait before next wave
+            # Wait before next wave
             await asyncio.sleep(DriverSearchService.WAVE_DELAY)
             RedisRideRepo.increment_wave(ride_id)
