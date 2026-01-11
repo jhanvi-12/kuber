@@ -173,7 +173,7 @@ class BookRideService(BaseResponseService):
             # Generate a Ride Request ID for the temp in redis.
             ride_request_id = str(uuid.uuid4())
             # Store ride request in the redis
-            RedisRideRepo.init_search_state(
+            await RedisRideRepo.init_search_state(
                 ride_request_id=ride_request_id,
                 user_id=current_user["user_id"],
                 payload={
@@ -199,7 +199,7 @@ class BookRideService(BaseResponseService):
             ))
 
             return self.response(
-                status.HTTP_200_OK, InfoMessage.findingDrivers, 
+                status.HTTP_200_OK, InfoMessage.findingDrivers,
                 {
                     "status": RideStatusEnum.FINDING_DRIVERS.value,
                     "ride_request_id": ride_request_id

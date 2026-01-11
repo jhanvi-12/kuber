@@ -69,4 +69,17 @@ class UpdateRideStatus(BaseModel):
             "example": {
                 "status": "COMPLETED"
             }
-        } 
+        }
+
+class RideOTPShema(BaseModel):
+    """Schema for ride otp"""
+    otp: int
+    ride_id: int
+
+    class Config:
+        json_schema_extra = {
+            "example":{
+                "otp": 1234,
+                "ride_id": 3
+            }
+        }

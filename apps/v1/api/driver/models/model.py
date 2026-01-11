@@ -94,3 +94,9 @@ class Driver(Base, TimestampMixin):
         nullable=constant.STATUS_TRUE,
         doc="Unique device identifier",
     )
+    is_docs_verified = Column(
+        Boolean,
+        default=constant.STATUS_FALSE,
+        doc="Status of whether driver's documents are verified or not."
+    )
+

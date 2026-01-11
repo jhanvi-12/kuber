@@ -2,21 +2,21 @@
 
 import time
 
-from core.utils import constant_variable
-
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 from config.redis_config import redis_client
+from core.utils import constant_variable
 
 
 class RedisRideRepo:
     """This class is used to represenst all ride methods to store data in redis."""
 
     @classmethod
-    def init_search_state(cls, ride_request_id: str, user_id: int, payload: dict):
+    async def init_search_state(cls, ride_request_id: str, user_id: int, payload: dict):
         """Initiate the driver search."""
         key = f"ride:search:{ride_request_id}"
 
         data = {
-            "status": "SEARCHING",
+            "status": RideStatusEnum.SEARCHING.value,
             "user_id": user_id,
             "pickup_latitude": payload["pickup_latitude"],
             "pickup_longitude": payload["pickup_longitude"],
@@ -30,129 +30,223 @@ class RedisRideRepo:
             "created_at": int(time.time()),
         }
 
-        pipe = redis_client.pipeline()
-
-        # Store ride request
-        pipe.hmset(key, mapping=data)
-
-        # Safety TTL (auto cleanup)
-        pipe.expire(key, 600)  # 10 minutes
-
-        # Cleanup related keys (if any)
-        pipe.delete(f"ride:lock:{ride_request_id}")
-        pipe.delete(f"ride:candidates:{ride_request_id}")
-
-        pipe.execute()
+        async with redis_client.pipeline() as pipe:
+            # Store ride request
+            await pipe.hmset(key, mapping=data)
+            
+            # Safety TTL (auto cleanup after 10 minutes)
+            await pipe.expire(key, 600)
+            
+            # Cleanup related keys (if any)
+            await pipe.delete(f"ride:lock:{ride_request_id}")
+            await pipe.delete(f"ride:candidates:{ride_request_id}")
+            
+            await pipe.execute()
 
     @classmethod
-    def acquire_lock(cls, ride_request_id, driver_id):
+    async def acquire_lock(cls, ride_request_id: str, driver_id: int) -> bool:
         """
-        Prevents multiple drivers from accepting same ride
+        Prevents multiple drivers from accepting the same ride.
+        Uses atomic SETNX operation.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            driver_id: ID of the driver attempting to accept
+            
+        Returns:
+            bool: True if lock acquired, False if already locked
         """
         lock_key = f"ride:lock:{ride_request_id}"
-        is_locked = redis_client.setnx(lock_key, driver_id)
-        if not is_locked:
-            return False
-
-        redis_client.expire(lock_key, 600)
-        return True
+        
+        # SETNX: Set if not exists (atomic operation)
+        is_locked = await redis_client.set(
+            lock_key,
+            str(driver_id),
+            nx=True,  # Only set if not exists
+            ex=600    # Expire in 10 minutes
+        )
+        
+        return is_locked is not None
 
     @classmethod
-    def release_lock(cls, ride_id):
-        """Prevents release lock.
-
-        Args:
-            ride_id (int): Ride id.
+    async def release_lock(cls, ride_request_id: str):
         """
-        redis_client.delete(f"ride:lock:{ride_id}")
+        Release the lock on a ride request.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+        """
+        lock_key = f"ride:lock:{ride_request_id}"
+        await redis_client.delete(lock_key)
 
     @classmethod
-    def update_status(cls, ride_id, status):
-        """Updating the ride status to make to customer is aware."""
-        redis_client.hset(
-            f"ride:search:{ride_id}",
-            "status",
-            status
-        )
+    async def update_status(cls, ride_request_id: str, status: str):
+        """
+        Update the status of a ride request.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            status: New status (e.g., 'SEARCHING', 'ACCEPTED', 'CANCELLED')
+        """
+        key = f"ride:search:{ride_request_id}"
+        await redis_client.hset(key, "status", status)
 
     @classmethod
-    def get_status(cls, ride_id):
-        """Fetching the status of the ride."""
-        return redis_client.hget(
-            f"ride:search:{ride_id}",
-            "status"
-        )
+    async def get_status(cls, ride_request_id: str) -> str:
+        """
+        Get the current status of a ride request.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            
+        Returns:
+            str: Current status or None if not found
+        """
+        key = f"ride:search:{ride_request_id}"
+        status = await redis_client.hget(key, "status")
+        return status
 
     @classmethod
-    def get_wave(cls, ride_id):
-        """This method is used to fetch the waves"""
-        return int(redis_client.hget(
-            f"ride:search:{ride_id}", "wave"
-        ) or 1)
+    async def get_wave(cls, ride_request_id: str) -> int:
+        """
+        Get the current search wave number.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            
+        Returns:
+            int: Current wave number (defaults to 1)
+        """
+        key = f"ride:search:{ride_request_id}"
+        wave = await redis_client.hget(key, "wave")
+        return int(wave) if wave else 1
 
     @classmethod
-    def increment_wave(cls, ride_id):
-        """This method is used to increment wave count."""
-        redis_client.hincrby(
-            f"ride:search:{ride_id}",
-            "wave",
-            1
-        )
+    async def increment_wave(cls, ride_request_id: str) -> int:
+        """
+        Increment the search wave number.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            
+        Returns:
+            int: New wave number
+        """
+        key = f"ride:search:{ride_request_id}"
+        new_wave = await redis_client.hincrby(key, "wave", 1)
+        return new_wave
 
     @classmethod
-    def add_candidates(cls, ride_request_id: str, driver_ids: list):
-        """This method is used to add drivers with that matching ride_type."""
+    async def get_ride_data(cls, ride_request_id: str) -> dict:
+        """
+        Get all ride request data from Redis.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            
+        Returns:
+            dict: All ride data or empty dict if not found
+        """
+        key = f"ride:search:{ride_request_id}"
+        data = await redis_client.hgetall(key)
+        return data if data else {}
+
+    @classmethod
+    async def delete_ride_data(cls, ride_request_id: str):
+        """
+        Delete all ride request data and related keys.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+        """
+        keys = [
+            f"ride:search:{ride_request_id}",
+            f"ride:lock:{ride_request_id}",
+            f"ride:candidates:{ride_request_id}"
+        ]
+        await redis_client.delete(*keys)
+
+    @classmethod
+    async def add_candidates(cls, ride_request_id: str, driver_id: int):
+        """
+        Add a driver to the list of candidates who were notified.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            driver_id: ID of the driver to add
+        """
         key = f"ride:candidates:{ride_request_id}"
-
-        if not driver_ids:
-            return
-
-        pipe = redis_client.pipeline()
-        pipe.sadd(key, *driver_ids)
-
-        # Keep same TTL as ride request (safety)
-        pipe.expire(key, 600)  # 10 minutes
-
-        pipe.execute()
+        await redis_client.sadd(key, str(driver_id))
+        await redis_client.expire(key, 600)  # 10 minutes TTL
 
     @classmethod
-    def has_driver_been_notified(cls, ride_request_id: str, driver_id):
-        """This method is keep track that drivers recevied the notification."""
-        return redis_client.sismember(
-            f"ride:candidates:{ride_request_id}",
+    async def get_candidate_drivers(cls, ride_request_id: str) -> set:
+        """
+        Get all candidate drivers who were notified.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            
+        Returns:
+            set: Set of driver IDs
+        """
+        key = f"ride:candidates:{ride_request_id}"
+        candidates = await redis_client.smembers(key)
+        return {int(d) for d in candidates} if candidates else set()
+
+    @classmethod
+    async def has_driver_been_notified(cls, ride_request_id: str, driver_id: int) -> bool:
+        """
+        Check if a driver was already notified about this ride.
+        
+        Args:
+            ride_request_id: Unique identifier for the ride request
+            driver_id: ID of the driver to check
+            
+        Returns:
+            bool: True if driver was already notified
+        """
+        key = f"ride:candidates:{ride_request_id}"
+        return await redis_client.sismember(key, str(driver_id))
+
+    @staticmethod
+    async def mark_driver_notified(ride_id: str, driver_id: str) -> bool:
+        """
+        Atomically marks driver as notified.
+        Returns True only if driver was NOT notified before.
+        """
+        return await redis_client.sadd(
+            f"ride:candidates:{ride_id}",
             driver_id
         )
 
     @classmethod
-    def get_assigned_driver(cls, ride_request_id: str):
+    async def get_assigned_driver(cls, ride_request_id: str):
         """
         Returns the driver_id who has locked/accepted the ride.
         Returns None if no driver is assigned.
         """
         key = f"ride:lock:{ride_request_id}"
 
-        driver_id = redis_client.get(key)
+        driver_id = await redis_client.get(key)
         if not driver_id:
             return None
 
         # Redis returns bytes → convert to int
         return int(driver_id)
 
-    # -------------------------------
-    # Accept Ride (ATOMIC)
-    # -------------------------------
     @classmethod
-    def mark_accepted(cls, ride_request_id: str, driver_id: int):
+    async def mark_accepted(cls, ride_request_id: str, driver_id: int):
         """
         Returns False if ride already accepted
         """
         if not cls.acquire_lock(ride_request_id, driver_id):
             return False
 
-        redis_client.hmset(
+        await redis_client.hmset(
             f"ride:search:{ride_request_id}",
             mapping={
-                "status": "ACCEPTED",
+                "status": RideStatusEnum.ACCEPTED.value,
                 "driver_id": driver_id,
                 "accepted_at": int(time.time())
             }
@@ -160,15 +254,16 @@ class RedisRideRepo:
         return True
 
     @classmethod
-    def mark_rejected(cls, ride_request_id, driver_id):
+    async def mark_rejected(cls, ride_request_id, driver_id):
         """This method is used when ride is rejected by driver"""
-        redis_client.sadd(f"ride:rejected:{ride_request_id}", driver_id)
-        redis_client.expire(f"ride:rejected:{ride_request_id}", 300)
+        await redis_client.sadd(f"ride:rejected:{ride_request_id}", driver_id)
+        await redis_client.expire(f"ride:rejected:{ride_request_id}", 300)
 
     @classmethod
-    def get_db_ride_id(cls, ride_request_id: str) -> int | None:
+    async def get_db_ride_id(cls, ride_request_id: str) -> int | None:
+        """This method is used to get the ride ID"""
         key = f"ride:search:{ride_request_id}"
-        ride_id = redis_client.hget(key, "ride_id")
+        ride_id = await redis_client.hget(key, "ride_id")
         return int(ride_id) if ride_id else None
 
 
@@ -180,7 +275,7 @@ class RedisDriverRepo:
         return f"drivers:geo:{ride_type}"
 
     @classmethod
-    def set_available(
+    async def set_available(
         cls,
         driver_id: int,
         lat: float,
@@ -190,10 +285,10 @@ class RedisDriverRepo:
     ):
         """This method is storing the geo location and ride_type, along with device_token."""
         # 1️⃣ Store geo location
-        redis_client.geoadd(cls._geo_key(ride_type),(lon, lat, str(driver_id)))
+        await redis_client.geoadd(cls._geo_key(ride_type),(lon, lat, str(driver_id)))
 
         # 2️⃣ Store metadata
-        redis_client.hmset(
+        await redis_client.hmset(
             f"driver:meta:{driver_id}",
             mapping={
                 "ride_type": ride_type,
@@ -203,24 +298,25 @@ class RedisDriverRepo:
         )
 
         # ✅ Heartbeat
-        redis_client.setex(
+        await redis_client.setex(
             f"driver:alive:{driver_id}",
             1000,
             1
         )
 
     @classmethod
-    def set_unavailable(cls, driver_id: int, ride_type: str):
+    async def set_unavailable(cls, driver_id: int, ride_type: str):
         """This method is used to remove that unavailable drivers from redis"""
         # Remove from geo search
-        redis_client.zrem(
+        await redis_client.zrem(
             cls._geo_key(ride_type),
             str(driver_id)
         )
 
         # Update metadata
-        redis_client.hset(
+        await redis_client.hset(
             f"driver:meta:{driver_id}",
             "is_available",
             constant_variable.STATUS_ZERO
         )
+

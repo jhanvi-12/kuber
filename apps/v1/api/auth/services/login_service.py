@@ -76,6 +76,11 @@ class LoginService(BaseResponseService):
             )
 
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
+                if user_obj.is_docs_verified != constant.STATUS_TRUE:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotVerified
+                    )
+
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id
                 )

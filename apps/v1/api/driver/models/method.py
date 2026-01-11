@@ -35,6 +35,7 @@ class DriverMethod:
         async with db:
             stmt = select(self.model).where(
                 self.model.id == driver_id,
+                self.model.is_docs_verified == constant.STATUS_TRUE,
                 self.model.deleted_at == constant.STATUS_NULL,
             )
             result = await db.execute(stmt)

@@ -1,7 +1,11 @@
 """This module is used to emit the socket events by API services."""
 
-from socket_server import sio
+import json
+
+from config.redis_config import redis_client
 from core.utils.message_variable import *
+from socket_server import sio
+
 
 class RideSocketEmitter:
     """This class emits all socket events which are used in ride booking system."""
@@ -18,28 +22,47 @@ class RideSocketEmitter:
     @staticmethod
     async def ride_accepted(ride_request_id, ride_id, driver_data):
         """This event is emitted when driver accpeted the ride."""
-        await sio.emit(
-            "ride_accepted",
-            {
+        await redis_client.publish(
+            "socket:events",
+            json.dumps({
+            "event": "ride_accepted",
+            "ride_id": ride_id,
+            "data": {
                 "status": InfoMessage.reqAccepted,
                 "message": InfoMessage.driverHeading,
                 "ride_request_id": ride_request_id,
                 "ride_id": ride_id,
-                "driver": driver_data
-            },
-            room=f"ride:{ride_id}"
+                "data": driver_data
+            }
+            })
+        )
+
+    @staticmethod
+    async def ride_completed(ride_id, data):
+        """This method is used to emit when ride is completed by driver."""
+        await redis_client.publish(
+            "socket:events",
+            json.dumps({
+            "event": "ride_completed",
+            "ride_id": ride_id,
+            "data": {
+                "message": InfoMessage.rideCompletedSuccess,
+                "ride_id": ride_id,
+                "data": data
+            }
+            })
         )
 
     @staticmethod
     async def no_driver_found(ride_id):
         """This method is used when no drivers are found for the ride."""
-        print("ROOM MEMBERS:", sio.manager.rooms)
-        await sio.emit(
-            "no_driver_found",
-            {
+        await redis_client.publish(
+            "socket:events",
+            json.dumps({
+                "event": "no_driver_found",
                 "ride_id": ride_id,
-                "title": "Oops! No pilot found",
-                "message": "Please try again later"
-            },
-            room=f"ride:{ride_id}"
+                "title": ErrorMessage.noDriverFound,
+                "message": ErrorMessage.tryAgain
+            })
         )
+

@@ -33,6 +33,7 @@ class InfoMessage:
     noPlansExpired = "No plans have expired for the driver!"
     notificationSentToDrivers = "Notification sent to drivers successfully!"
     rideBookedSuccessfully = "Ride booked successfully!"
+    rideCompletedSuccess = "Ride Completed successfully!"
     rideRequestSent = "Ride request sent. Waiting for driver acceptance..."
     findingDrivers = "Searching for available drivers for your ride."
     rideAcceptedSuccessfully = "Ride accepted successfully!"
@@ -76,7 +77,7 @@ class ErrorMessage:
     invalidImageType = "Invalid image type!"
     otpGenerationFailed = "Error occurred while generating OTP!"
     errGeneratingRes = "Error occurred while generating the response!"
-    driverNotFound = "Driver not found!"
+    driverNotFound = "Driver unavailable or not verified."
     vehicleNotFound = "Vehicle not found for the given driver!"
     driverVehicleAlreadyExists = "Driver vehicle already exists!"
     pwdLengthNotMatch = "password must be at least 8 characters long"
@@ -102,4 +103,8 @@ class ErrorMessage:
     otpExpiredOrInvalid = "OTP is either expired or invalid."
     driverNotAssignedToRide = "The driver is not assigned to the ride"
     rideNotAvailable = "Ride not available"
+    tryAgain = "Please try again later!"
+    noDriverFound = "Oops! No pilot found"
+    driverNotVerified = "Driver is not verified"
+
 

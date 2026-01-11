@@ -1,14 +1,18 @@
 import os
-
+import socketio
 import click
 import uvicorn
-
-from apps.server import app
+from socket_server import sio
+from apps.server import app as fastapi_app
 from config.env_config import load_dotenv
 from core.utils import constant_variable
 
 load_dotenv()
 
+app = socketio.ASGIApp(
+    sio,
+    other_asgi_app=fastapi_app
+)
 
 @click.command()
 @click.option(

@@ -4,7 +4,8 @@
 from typing import Optional
 from pydantic import BaseModel
 from core.utils import constant_variable as constant
-
+from fastapi import Form
+from datetime import date
 
 class DriverVehicleDetailsSchema(BaseModel):
     """This class is the driver vehicle details schema."""
@@ -27,6 +28,40 @@ class DriverVehicleDetailsSchema(BaseModel):
                 "vehicle_model": 2023,
             }
         }
+
+class DriverVehicleCombinedSchema(BaseModel):
+    """This class is the driver vehicle details schema."""
+    # -------- Vehicle details --------
+    vehicle_type: str
+    make: str
+    vehicle_model: str
+    vehicle_number: str
+
+    # -------- License & insurance --------
+    license_number: str
+    license_expiration_date: date
+    vehicle_insurance_expiration_date: date
+
+    @classmethod
+    def as_form(
+        cls,
+        vehicle_type: str = Form(...),
+        make: str = Form(...),
+        vehicle_model: str = Form(...),
+        vehicle_number: str = Form(...),
+        license_number: str = Form(...),
+        license_expiration_date: date = Form(...),
+        vehicle_insurance_expiration_date: date = Form(...),
+    ):
+        return cls(
+            vehicle_type=vehicle_type,
+            make=make,
+            vehicle_model=vehicle_model,
+            vehicle_number=vehicle_number,
+            license_number=license_number,
+            license_expiration_date=license_expiration_date,
+            vehicle_insurance_expiration_date=vehicle_insurance_expiration_date,
+        )
 
 class SelectPlanSchema(BaseModel):
     """This class is the select plan schema."""
