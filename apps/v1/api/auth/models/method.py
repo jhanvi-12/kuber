@@ -25,6 +25,17 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_by_driver_id(
+        self, db: AsyncSession, driver_id: int, deleted_at=constant.STATUS_NULL
+    ):
+        """This function will returns the driver object"""
+        async with db:  # Ensure the session context
+            stmt = select(self.model).where(
+                self.model.driver_id == driver_id, self.model.deleted_at == deleted_at
+            )
+            result = await db.execute(stmt)
+            return result.scalars().first()
+
     async def find_by_session_id(self, db: AsyncSession, user_id: int, session_id: str):
         """This function will return the user session object"""
         async with db:  # Ensure the session context

@@ -1,26 +1,27 @@
 """This module is responsible to maintain the book ride service logic."""
 
+import asyncio
 import math
-from datetime import datetime
+import uuid
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
-from sqlalchemy.ext.asyncio import AsyncSession
-from apps.v1.api.driver.services.driver_firebase_notification import (
-    DriverFirebaseNotification,
-)
 from fastapi import status
-from apps.v1.api.driver.models.method import DriverMethod
-from apps.v1.api.driver.models.model import Driver
-from apps.v1.api.ride.models.model import Ride
-from core.utils import constant_variable as constant
-from apps.v1.api.base_service import BaseResponseService
-from core.utils.message_variable import *
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
-from config import aws_config
+from apps.v1.api.base_service import BaseResponseService
+from apps.v1.api.driver.models.method import DriverMethod
+from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.driver.services.driver_search_service import \
+    DriverSearchService
 from apps.v1.api.ride.models.attribute import RideStatusEnum
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
+from core.redis_repo import RedisRideRepo
+from core.utils import constant_variable as constant
+from core.utils.message_variable import *
 
 
 class BookRideService(BaseResponseService):
@@ -168,77 +169,41 @@ class BookRideService(BaseResponseService):
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
-            # Create a new Ride object
-            ride = Ride(
-                user_id=current_user.get("user_id"),
-                source_latitude=body["source"]["latitude"],
-                source_longitude=body["source"]["longitude"],
-                source_address=body["source"]["address"],
-                destination_address=body["destination"]["address"],
-                destination_latitude=body["destination"]["latitude"],
-                destination_longitude=body["destination"]["longitude"],
-                status=RideStatusEnum.BOOKED.value,
-                ride_fare=body["ride_fare"],
-                ride_type=body["ride_type"],
-                ride_date=datetime.now(),
-                ride_otp=self.generate_otp_code(),
+
+            # Generate a Ride Request ID for the temp in redis.
+            ride_request_id = str(uuid.uuid4())
+            # Store ride request in the redis
+            await RedisRideRepo.init_search_state(
+                ride_request_id=ride_request_id,
+                user_id=current_user["user_id"],
+                payload={
+                    "pickup_latitude": body["pickup_latitude"],
+                    "pickup_longitude": body["pickup_longitude"],
+                    "pickup_address": body["pickup_address"],
+                    "destination_latitude": body["destination_latitude"],
+                    "destination_longitude": body["destination_longitude"],
+                    "destination_address": body["destination_address"],
+                    "ride_type": body["ride_type"],
+                    "ride_fare": body["ride_fare"]
+                }
             )
+            # Emit searching state
+            await RideSocketEmitter.ride_searching(ride_request_id)
 
-            # Update the user address.
-            user_obj.address = body["source"]["address"]
+            # Start driver search ASYNC (background)
+            asyncio.create_task(DriverSearchService.start_wave(
+                ride_request_id,
+                body.get("ride_type"),
+                body.get("pickup_latitude"),
+                body.get("pickup_longitude")
+            ))
 
-            # Add the ride to the database
-            db.add(ride)
-            db.add(user_obj)
-            await db.commit()
-            await db.refresh(ride)
-
-            # Get nearby drivers
-            nearby_drivers = await self.get_nearby_drivers(
-                db, body["source"]["latitude"], body["source"]["longitude"], body.get("ride_type")
-            )
-            print("******", nearby_drivers)
-            if not nearby_drivers:
-                return self.response(
-                    status.HTTP_200_OK, ErrorMessage.noNearbyDriversFound
-                )
-
-            # Send notifications to nearby drivers
-            title = constant.RIDE_REQUEST_TITLE
-            ride_details = {"id": ride.id, **body}
-            body = f"New ride request from {ride_details['source']['address']} to {ride_details['destination']['address']}"
-            data = {
-                "ride_id": str(ride_details.get("id")),
-                "user_id": str(user_obj.id),
-                "source_address": str(ride_details["source"]["address"]),
-                "destination_address": str(ride_details["destination"]["address"]),
-                "ride_type": str(ride_details["ride_type"]),
-                "username": str(user_obj.full_name),
-                "profile_image": str(
-                    f"{aws_config.AWS_BASE_URL}{user_obj.profile_image}"
-                    if user_obj.profile_image else constant.STATUS_NULL
-                ),
-            }
-            print("*********, nearby_drivers", nearby_drivers)
-            print("*********, data", data)
-            notification_res = (
-                await DriverFirebaseNotification().send_notification_to_drivers(
-                    nearby_drivers, title, body, data
-                )
-            )
-            if notification_res.status_code != status.HTTP_200_OK:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST,
-                    ErrorMessage.notificationFailed,
-                )
-
-            response_data = {
-                "ride_id": ride.id,
-                "nearby_drivers_count": len(nearby_drivers),
-                "ride_otp": ride.ride_otp,
-            }
             return self.response(
-                status.HTTP_200_OK, InfoMessage.rideRequestSent, response_data
+                status.HTTP_200_OK, InfoMessage.findingDrivers,
+                {
+                    "status": RideStatusEnum.FINDING_DRIVERS.value,
+                    "ride_request_id": ride_request_id
+                }
             )
 
         except Exception:

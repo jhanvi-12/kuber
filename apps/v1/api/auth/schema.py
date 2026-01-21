@@ -63,6 +63,7 @@ class LoginSchema(BaseModel):
 
     email: EmailStr
     password: str
+    user_type: str
 
     class Config:
         """This class is the schema for user configuration."""
@@ -70,7 +71,7 @@ class LoginSchema(BaseModel):
         from_attributes = constant.STATUS_TRUE
         extra = "forbid"
         json_schema_extra = {
-            "example": {"email": "johnsmith@example.com", "password": "Password@123"}
+            "example": {"email": "johnsmith@example.com", "password": "Password@123", "user_type": "customer/driver"}
         }
 
     @field_validator("password")

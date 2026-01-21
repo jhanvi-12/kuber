@@ -151,7 +151,9 @@ class SignUpService(BaseResponseService):
                 password=data["hashed_password"],
                 user_type=user_type.value,
                 mobile=data["contact"],
-                profile_image=data["profile_image"]
+                profile_image=data["profile_image"],
+                # TODO: update this is_docs_verified after admin verified it , as of now it's true by default.
+                is_docs_verified=constant.STATUS_TRUE
             )
 
             return user_obj

@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from config.db_session import Base
+from apps.v1.api.plans.models.model import Plans
 from core.db.mixins.timestamp_mixin import TimestampMixin
 from core.utils import constant_variable as constant
 
@@ -65,12 +66,7 @@ class Driver(Base, TimestampMixin):
     longitude = Column(
         Double, nullable=constant.STATUS_TRUE, doc="Current longitude of the driver"
     )
-    device_token = Column(
-        String(255),
-        nullable=constant.STATUS_TRUE,
-        doc="Device token for push notifications",
-    )
-    is_active = Column(
+    is_available = Column(
         Boolean, default=constant.STATUS_FALSE, doc="Whether driver is active or not"
     )
 
@@ -98,3 +94,9 @@ class Driver(Base, TimestampMixin):
         nullable=constant.STATUS_TRUE,
         doc="Unique device identifier",
     )
+    is_docs_verified = Column(
+        Boolean,
+        default=constant.STATUS_FALSE,
+        doc="Status of whether driver's documents are verified or not."
+    )
+

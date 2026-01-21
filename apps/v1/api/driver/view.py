@@ -1,20 +1,21 @@
 """This module is responsible to contain driver API's endpoint"""
 
-from fastapi import APIRouter, Depends, Request, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from apps.v1.api.driver import schema
-from apps.v1.api.ride.schema import LocationSchema
+
 from apps.v1.api.auth.models import attribute
-from apps.v1.api.driver.services.create_driver_vehicle_service import DriverService
-from apps.v1.api.driver.services.get_driver_veh_service import GetDriverService
+from apps.v1.api.driver import schema
+from apps.v1.api.driver.services.create_driver_vehicle_service import \
+    DriverService
 from apps.v1.api.driver.services.driver_plan_service import DriverPlanService
-from apps.v1.api.driver.services.update_driver_status_service import (
-    UpdateDriverStatusService,
-)
+from apps.v1.api.driver.services.get_driver_veh_service import GetDriverService
+from apps.v1.api.driver.services.update_driver_status_service import \
+    UpdateDriverStatusService
 from apps.v1.api.pagination_service import oauth2
+from apps.v1.api.ride.schema import LocationSchema
 from config import db_config
+from core.utils.token_authentication import JWTOAuth2
 
 driverrouter = APIRouter()
 getdb = db_config.get_db
@@ -45,6 +46,41 @@ async def driver_vehicle_details_api(
     )
     return response
 
+@driverrouter.post("/vehicle/complete-profile")
+async def driver_vehicle_complete_profile(
+    request: Request,
+    body: schema.DriverVehicleCombinedSchema = Depends(
+        schema.DriverVehicleCombinedSchema.as_form
+    ),
+
+    # -------- Images --------
+    license_image: UploadFile = File(...),
+    vehicle_image: UploadFile = File(...),
+    vehicle_insurance_image: UploadFile = File(...),
+
+    # -------- Common deps --------
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+    db: AsyncSession = Depends(getdb),
+):
+    """
+    Combined API to:
+    - Save vehicle details
+    - Upload license & vehicle documents
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+
+    response = await DriverService().create_driver_vehicle_and_docs_service(
+        request=request,
+        db=db,
+        body=body,
+        files={
+            "license_image": license_image,
+            "vehicle_image": vehicle_image,
+            "vehicle_insurance_image": vehicle_insurance_image,
+        },
+        current_user=current_user,
+    )
+    return response
 
 @driverrouter.get("/vehicle_details")
 async def get_driver_vehicle_details_api(
@@ -132,11 +168,10 @@ async def select_plan_api(
     return response
 
 
-@driverrouter.put("/status/update")
+@driverrouter.post("/status/update")
 async def update_driver_status_api(
     request: Request,
-    driver_status: int,
-    body : Optional[LocationSchema] = None,
+    body : LocationSchema,
     db: AsyncSession = Depends(getdb),
     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
@@ -154,7 +189,7 @@ async def update_driver_status_api(
     """
     current_user = request.state.user_data
     response = await UpdateDriverStatusService().update_driver_status_service(
-        current_user, db, driver_status, body
+        current_user, db, body
     )
     return response
 

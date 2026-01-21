@@ -83,6 +83,10 @@ class User(TimestampMixin, Base):
         nullable=constant.STATUS_TRUE,
         doc="Unique device identifier",
     )
+    #  Generate this code when user login and when logged out and re login generate again
+    code = Column(
+        Integer, nullable=constant.STATUS_TRUE, doc="4-digit OTP for ride verification"
+    )
 
 
 class OtpVerification(Base):
