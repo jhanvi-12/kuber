@@ -62,8 +62,8 @@ class TrackRideService(BaseResponseService):
                     ErrorMessage.rideOrDriverNotFound,
                 )
 
-            # Validate: ride assignment logic
-            if ride.status == RideStatusEnum.BOOKED.value:
+            # Validate: ride assignment logic TODO: update it
+            if ride.status == "Booked":
                 # Ride still unassigned
                 if new_status != RideStatusEnum.ACCEPTED.value:
                     return self.response(status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidRideStatus)

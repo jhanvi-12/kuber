@@ -48,7 +48,7 @@ class RideAcceptService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                 )
 
-            if ride_req.get("status") != RideStatusEnum.SEARCHING.value:
+            if ride_req.get("status") != "Searching":
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotAvailable
                     
@@ -59,7 +59,7 @@ class RideAcceptService(BaseResponseService):
                 f"ride:lock:{ride_request_id}",
                 driver_id,
                 nx=True,
-                ex=600
+                ex=1200
             )
 
             if not locked:
@@ -102,10 +102,12 @@ class RideAcceptService(BaseResponseService):
                 }
             )
 
-            # 5️⃣ Emit socket event
+            # Emit socket event
             data = jsonable_encoder(driver_data)
             data.pop("password")
-            await RideSocketEmitter.ride_accepted(
+            # Emitting the book_ride_status event with accepted status
+            await RideSocketEmitter.book_ride_status(
+                ride_status=RideStatusEnum.ACCEPTED.value,
                 ride_request_id=ride_request_id,
                 ride_id=ride.id,
                 driver_data=data

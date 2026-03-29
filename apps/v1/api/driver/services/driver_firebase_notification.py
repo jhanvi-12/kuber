@@ -21,7 +21,7 @@ class DriverFirebaseNotification(BaseResponseService):
     async def _initialize_firebase(self) -> bool:
         """Initialize Firebase app if not already initialized."""
         try:
-            # ✅ Firebase-safe check
+            # Firebase-safe check
             if not firebase_admin._apps:
                 cred = credentials.Certificate("kubercab-730b1e547e.json")
                 firebase_admin.initialize_app(cred)
@@ -64,10 +64,11 @@ class DriverFirebaseNotification(BaseResponseService):
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain
             )
-        print("*************Hello******")
+        logger.info("*************Hello******")
         try:
             message = self._build_message(device_token, title, body, data)
             messaging.send(message)
+            print("Notification sent successfully")
             logger.info(f"Notification sent to driver.")
         except Exception as e:
             logger.error(f"Failed to send notification to driver : {str(e)}")

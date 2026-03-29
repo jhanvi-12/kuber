@@ -1,14 +1,17 @@
 """This module is finding driver using waves to fetch the response in given time"""
 
 import asyncio
+import logging
 
 from apps.v1.api.driver.services.driver_firebase_notification import \
     DriverFirebaseNotification
 from apps.v1.api.ride.models.attribute import RideStatusEnum
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from config.redis_config import redis_client
 from core.redis_repo import RedisRideRepo
 from core.utils import constant_variable
 
+LOG = logging.getLogger(__name__)
 
 class DriverSearchService:
     """Class for searching the driver in waves"""
@@ -23,34 +26,45 @@ class DriverSearchService:
     }
 
     @staticmethod
-    async def start_wave(ride_id, ride_type, lat, lng):
+    async def start_wave(ride_request_id, ride_type, lat, lng):
         """This method is used to find the drivers in waves from redis
         and send the notification to nearby drivers."""
         while True:
-            wave = await RedisRideRepo.get_wave(ride_id)
-            print("*********", wave)
+            wave = await RedisRideRepo.get_wave(ride_request_id)
+            LOG.info(wave)
 
             # Stop if ride already accepted / cancelled
-            status = await RedisRideRepo.get_status(ride_id)
-            if status != RideStatusEnum.SEARCHING.value:
+            status = await RedisRideRepo.get_status(ride_request_id)
+            if status != "Searching":
                 return
 
+            LOG.info(f"Current wave: {wave}")
             if wave > DriverSearchService.MAX_WAVES:
-                print("Waves are completed")
-                return
+                LOG.info("Waves are completed")
+                # Double-check status before failing (avoid race condition)
+                status = await RedisRideRepo.get_status(ride_request_id)
+                if status == "Searching":
+                    await RedisRideRepo.update_status(
+                        ride_request_id,
+                        RideStatusEnum.FAILED.value
+                    )
 
+                    await RideSocketEmitter.book_ride_status(
+                        RideStatusEnum.FAILED.value,
+                        ride_request_id
+                    )
+                    return
             radius = DriverSearchService.WAVE_RADIUS[wave]
-
             drivers = await redis_client.georadius(
                 f"drivers:geo:{ride_type}", lng, lat, radius, unit="km"
             )
-
+            LOG.info(drivers)
             if not drivers:
                 await asyncio.sleep(DriverSearchService.WAVE_DELAY)
-                await RedisRideRepo.increment_wave(ride_id)
+                await RedisRideRepo.increment_wave(ride_request_id)
                 continue
 
-            pipe = await redis_client.pipeline()
+            pipe = redis_client.pipeline()
 
             for driver_id in drivers:
                 await pipe.hgetall(f"driver:meta:{driver_id}")
@@ -58,7 +72,7 @@ class DriverSearchService:
 
             for driver_id, meta in zip(drivers, driver_meta_list):
                 is_new = await RedisRideRepo.mark_driver_notified(
-                    ride_id, driver_id
+                    ride_request_id, driver_id
                 )
 
                 if not is_new:
@@ -73,8 +87,8 @@ class DriverSearchService:
                     constant_variable.RIDE_REQUEST_BODY,
                 )
                 # MARK AS NOTIFIED (REUSE SAME SET)
-                await RedisRideRepo.add_candidates(ride_id, [driver_id])
+                await RedisRideRepo.add_candidates(ride_request_id, [driver_id])
 
             # Wait before next wave
-            await RedisRideRepo.increment_wave(ride_id)
+            await RedisRideRepo.increment_wave(ride_request_id)
             await asyncio.sleep(DriverSearchService.WAVE_DELAY)

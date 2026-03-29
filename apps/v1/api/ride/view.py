@@ -127,7 +127,7 @@ async def accept_ride_api(
 
 @riderouter.post("/ride/cancel")
 async def cancel_ride_api(
-    body: dict = Body(...),
+    body: schema.RideCancleSchema,
     db: AsyncSession = Depends(getdb),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
@@ -143,7 +143,7 @@ async def cancel_ride_api(
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await UserRideCancelService().user_ride_cancel_service(
-        db, body, current_user
+        db, body.dict(), current_user
     )
     return response
 

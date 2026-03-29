@@ -16,7 +16,7 @@ class RedisRideRepo:
         key = f"ride:search:{ride_request_id}"
 
         data = {
-            "status": RideStatusEnum.SEARCHING.value,
+            "status": "Searching",
             "user_id": user_id,
             "pickup_latitude": payload["pickup_latitude"],
             "pickup_longitude": payload["pickup_longitude"],
