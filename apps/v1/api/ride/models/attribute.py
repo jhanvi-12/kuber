@@ -6,11 +6,9 @@ class RideStatusEnum(str, Enum):
     """
     Enum for ride status.
     """
-    SEARCHING = "Searching"
-    FINDING_DRIVERS = "Finding_drivers"
-    BOOKED = "Booked"
-    ACCEPTED = "Accepted"
-    REACHED = "Reached"
-    STARTED = "Started"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
+    FAILED = 0
+    ACCEPTED = 1
+    REACHED = 2
+    STARTED = 3
+    COMPLETED = 4
+    CANCELLED = 5

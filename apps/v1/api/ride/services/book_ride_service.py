@@ -201,7 +201,6 @@ class BookRideService(BaseResponseService):
             return self.response(
                 status.HTTP_200_OK, InfoMessage.findingDrivers,
                 {
-                    "status": RideStatusEnum.FINDING_DRIVERS.value,
                     "ride_request_id": ride_request_id
                 }
             )

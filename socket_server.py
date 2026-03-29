@@ -162,13 +162,13 @@ async def driver_location_update(sid, data):
     Driver sends live location updates every 3–5 seconds
     """
     try:
-        # 1️⃣ Get authenticated driver_id from socket session
+        # Get authenticated driver_id from socket session
         driver_data = await get_authenticated_user(sid)
         if not driver_data:
             return
         driver_id = driver_data["user_id"]
 
-        # 2️⃣ Extract & validate payload
+        # Extract & validate payload
         data = json.loads(data)
         lat = data.get("lat")
         lng = data.get("lng")
@@ -184,7 +184,7 @@ async def driver_location_update(sid, data):
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
             return
 
-        # 3️⃣ Update GEO location (RAW COMMAND – SAFE)
+        # Update GEO location (RAW COMMAND – SAFE)
         await RedisDriverRepo.set_available(
             driver_id,
             lat,

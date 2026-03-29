@@ -83,3 +83,15 @@ class RideOTPShema(BaseModel):
                 "ride_id": 3
             }
         }
+
+
+class RideCancleSchema(BaseModel):
+    """This class is used to cancel the ride with schema
+    """
+    class Config:
+        """Config class"""
+        json_schema_extra = {
+            "user_type": "driver",
+            "reason": "taking too long",
+            "description": "Customer changed mind"
+        }

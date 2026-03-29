@@ -48,9 +48,9 @@ class Ride(Base, TimestampMixin):
     ride_type = Column(String(50), nullable=constant.STATUS_FALSE, doc="Type of ride")
     # ride_time = Column(DateTime, nullable=False, doc="Time of the ride")
     status = Column(
-        String(50),
+        Integer,
         nullable=constant.STATUS_FALSE,
-        doc="Status of the ride (scheduled, ongoing, completed, etc.)",
+        doc="Status of the ride (0 failed, accepted 1, completed 4, etc.)",
     )
     ride_fare = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Fare amount for the ride"
