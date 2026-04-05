@@ -77,6 +77,7 @@ class RideOTPShema(BaseModel):
     ride_id: int
 
     class Config:
+        """Config class"""
         json_schema_extra = {
             "example":{
                 "otp": 1234,

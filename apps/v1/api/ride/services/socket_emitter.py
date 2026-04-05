@@ -2,10 +2,12 @@
 
 import json
 from datetime import datetime
+
+from apps.v1.api.ride.models.attribute import RideStatusEnum
+from config import aws_config
 from config.redis_config import redis_client
 from core.utils.message_variable import *
 from socket_server import sio
-from apps.v1.api.ride.models.attribute import RideStatusEnum
 
 
 class RideSocketEmitter:
@@ -39,6 +41,12 @@ class RideSocketEmitter:
                 "status": RideStatusEnum.ACCEPTED.value,
                 "title": InfoMessage.reqAccepted,
                 "message": InfoMessage.driverHeading,
+                "include_driver": True
+            },
+            RideStatusEnum.REACHED.value: {
+                "status": RideStatusEnum.REACHED.value,
+                "title": InfoMessage.driverArrived,
+                "message": InfoMessage.driverReachedSuccessfully,
                 "include_driver": True
             },
             RideStatusEnum.FAILED.value: {
@@ -83,6 +91,11 @@ class RideSocketEmitter:
 
         # Attach driver info only when required
         if config.get("include_driver") and driver_data:
+            driver_data["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_data["profile_image"]}"
+                if driver_data["profile_image"] is not None
+                else None
+            )
             data["driver"] = driver_data
 
         # Merge additional dynamic fields

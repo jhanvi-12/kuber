@@ -17,7 +17,7 @@ class DriverSearchService:
     """Class for searching the driver in waves"""
 
     MAX_WAVES = 3
-    WAVE_DELAY = 7  # seconds
+    WAVE_DELAY = 30  # seconds
 
     WAVE_RADIUS = {
         1: 1,   # 0–1 km
