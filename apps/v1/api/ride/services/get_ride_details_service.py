@@ -16,6 +16,7 @@ from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
 from core.utils.message_variable import *
+from core.utils import constant_variable as constant
 
 
 class RideDetailService(BaseResponseService):
@@ -61,8 +62,8 @@ class RideDetailService(BaseResponseService):
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
             )
 
-    async def driver_reached_service(
-        self, db: AsyncSession, current_user: dict, ride_id: int
+    async def update_ride_status_service(
+        self, db: AsyncSession, current_user: dict, body: dict
     ):
         """
         Update the ride status when the driver reaches the pickup location.
@@ -74,12 +75,14 @@ class RideDetailService(BaseResponseService):
         """
         try:
             driver_id = current_user["user_id"]
+            ride_id = body.get("ride_id")
+            ride_status = body.get("status")
             ride = await UserAuthMethod(Ride).find_by_ride_id_status(
                 db, ride_id, RideStatusEnum.ACCEPTED.value
             )
             if not ride:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.rideNotFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.rideNotFoundWithAccept
                 )
 
             # Validate driver assignment (MOST IMPORTANT)
@@ -95,7 +98,26 @@ class RideDetailService(BaseResponseService):
                     status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound
                 )
 
-            ride.status = RideStatusEnum.REACHED.value
+            status_mapping = {
+                constant.STATUS_TWO: {
+                    "status": RideStatusEnum.REACHED.value,
+                    "message": InfoMessage.driverArrived
+                },
+                constant.STATUS_THREE: {
+                    "status": RideStatusEnum.STARTED.value,
+                    "message": InfoMessage.rideStarted
+                },
+                constant.STATUS_FOUR: {
+                    "status": RideStatusEnum.COMPLETED.value,
+                    "message": InfoMessage.thankYou
+                },
+            }
+
+            message = InfoMessage.driverStatusUpdated
+            update_status = status_mapping.get(ride_status)
+            if update_status:
+                ride.status = update_status["status"]
+                message = update_status["message"]
             db.add(ride)
             await db.commit()
 
@@ -110,15 +132,15 @@ class RideDetailService(BaseResponseService):
             data = RideResponse().dump(response)
 
             await RideSocketEmitter.book_ride_status(
-                ride_status=RideStatusEnum.REACHED.value,
+                ride_status=ride.status,
                 ride_request_id=None,
                 ride_id=ride.id,
                 driver_data=data,
             )
             return self.response(
                 status.HTTP_200_OK,
-                InfoMessage.driverArrived,
-                data=data,
+                message,
+                data=jsonable_encoder(ride),
             )
         except Exception:
             return self.response(

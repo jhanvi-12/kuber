@@ -103,6 +103,7 @@ class ErrorMessage:
     invalidRideStatus =  "Invalid status transition."
     rideAlreadyAssigned = "Ride already assigned to another driver."
     rideNotFound = "Ride not found with the provided ID."
+    rideNotFoundWithAccept = "Ride is not in an accepted state."
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
     rideCancelled = "Ride might be cancelled by user."
     userOrDriverNotFound = "User or driver not found with the provided details."

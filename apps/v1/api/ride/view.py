@@ -85,9 +85,9 @@ async def accept_ride_api(
     return response
 
 
-@riderouter.post("/ride/driver_reached")
-async def driver_reached_ride_api(
-    ride_id: int,
+@riderouter.post("/ride/update_status")
+async def update_ride_status_api(
+    body: schema.RideStatusSchema,
     db: AsyncSession = Depends(getdb),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
@@ -101,8 +101,8 @@ async def driver_reached_ride_api(
        dict: A response containing the driver's ride reached status.
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
-    response = await RideDetailService().driver_reached_service(
-        db, current_user, ride_id
+    response = await RideDetailService().update_ride_status_service(
+        db, current_user, body.dict()
     )
     return response
 
@@ -128,27 +128,6 @@ async def cancel_ride_api(
     )
     return response
 
-
-@riderouter.post("/start_ride")
-async def start_ride_api(
-    ride_id: int,
-    db: AsyncSession = Depends(getdb),
-    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
-):
-    """
-    Endpoint to accept a ride.
-
-    Args:
-        ride_id (int): The ID of the ride to accept.
-        db (AsyncSession): The database session.
-
-    Returns:
-        dict: A response indicating the success or failure of the ride acceptance.
-    """
-    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
-    response = await RideAcceptService().user_start_ride_service(current_user, db, ride_id)
-    return response
-
 @riderouter.post("/ride/otp_verify")
 async def ride_otp_verify_api(
     body: schema.RideOTPShema,
@@ -168,28 +147,5 @@ async def ride_otp_verify_api(
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await RideOTPService().ride_otp_verification_service(
         db, body, current_user
-    )
-    return response
-
-
-@riderouter.post("/ride_completed")
-async def driver_ride_completed_api(
-    ride_id: int,
-    db: AsyncSession = Depends(getdb),
-    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
-):
-    """
-    Endpoint to update the ride status when the driver reaches the pickup location.
-
-    Args:
-        body (DriverReachedSchema): The request body containing ride details.
-        db (AsyncSession): The database session.
-
-    Returns:
-        dict: A response indicating the success or failure of the status update.
-    """
-    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
-    response = await RideAcceptService().get_complete_ride_service(
-        db, ride_id, current_user
     )
     return response
