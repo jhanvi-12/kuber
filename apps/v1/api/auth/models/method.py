@@ -150,3 +150,11 @@ class UserAuthMethod:
         await db.refresh(user)
 
         return user
+
+    async def find_by_ride_id_status(self, db: AsyncSession, ride_id: int, ride_status):
+        """This function is used to fetch the ride with status"""
+        async with db:
+            stmt = select(self.model).where(self.model.id == ride_id,
+                                        self.model.status == ride_status)
+            result = await db.execute(stmt)
+            return result.scalars().first()

@@ -51,6 +51,7 @@ class InfoMessage:
     driverReachedSuccessfully = "Driver has reached your location successfully!"
     driverTrackingSuccess = "Driver tracking information retrieved successfully!"
     rideCancelledSuccessfully = "Ride cancelled successfully!"
+    beforeRideCancelMsg = "Your ride request is cancelled. No charges applied."
     numberChanged = "Mobile Number changed successfully!"
     emailTemplateSubject = "Your Kuber Cab OTP verification code"
     deviceTokenGenerated = "Device token has been generated successfully"
@@ -102,6 +103,7 @@ class ErrorMessage:
     invalidRideStatus =  "Invalid status transition."
     rideAlreadyAssigned = "Ride already assigned to another driver."
     rideNotFound = "Ride not found with the provided ID."
+    rideNotFoundWithAccept = "Ride is not in an accepted state."
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."
     rideCancelled = "Ride might be cancelled by user."
     userOrDriverNotFound = "User or driver not found with the provided details."
@@ -111,5 +113,4 @@ class ErrorMessage:
     tryAgain = "Please try again later!"
     noDriverFound = "Oops! No pilot found"
     driverNotVerified = "Driver is not verified"
-
 

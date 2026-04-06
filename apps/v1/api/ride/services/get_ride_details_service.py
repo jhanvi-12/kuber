@@ -7,13 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
+from apps.v1.api.driver.models.method import DriverMethod
+from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
+from apps.v1.api.ride.serializer import RideResponse
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
+from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
 from core.utils.message_variable import *
-from apps.v1.api.driver.models.model import Driver
-from apps.v1.api.driver.models.method import DriverMethod
 from core.utils import constant_variable as constant
-from apps.v1.api.ride.models.attribute import RideStatusEnum
+
 
 class RideDetailService(BaseResponseService):
     """This class is used to get the ride details"""
@@ -58,7 +62,9 @@ class RideDetailService(BaseResponseService):
                 status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
             )
 
-    async def driver_reached_service(self, db: AsyncSession, ride_id, driver_id):
+    async def update_ride_status_service(
+        self, db: AsyncSession, current_user: dict, body: dict
+    ):
         """
         Update the ride status when the driver reaches the pickup location.
         Args:
@@ -68,39 +74,73 @@ class RideDetailService(BaseResponseService):
             StandardResponse: The response object with status and message.
         """
         try:
-            ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
+            driver_id = current_user["user_id"]
+            ride_id = body.get("ride_id")
+            ride_status = body.get("status")
+            ride = await UserAuthMethod(Ride).find_by_ride_id_status(
+                db, ride_id, RideStatusEnum.ACCEPTED.value
+            )
             if not ride:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND,
-                    ErrorMessage.rideNotFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.rideNotFoundWithAccept
                 )
 
-            # 2️⃣ Validate driver assignment (🔥 MOST IMPORTANT)
+            # Validate driver assignment (MOST IMPORTANT)
             if ride.driver_id != driver_id:
                 return self.response(
-                    status.HTTP_403_FORBIDDEN,
-                    ErrorMessage.driverNotAssignedToRide
+                    status.HTTP_403_FORBIDDEN, ErrorMessage.driverNotAssignedToRide
                 )
 
-            # 3️⃣ Fetch driver (optional but safe)
+            # Fetch driver (optional but safe)
             driver = await DriverMethod(Driver).get_driver_by_id(db, driver_id)
             if not driver:
                 return self.response(
-                    status.HTTP_404_NOT_FOUND,
-                    ErrorMessage.driverNotFound
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound
                 )
 
-            ride.status = RideStatusEnum.REACHED.value
+            status_mapping = {
+                constant.STATUS_TWO: {
+                    "status": RideStatusEnum.REACHED.value,
+                    "message": InfoMessage.driverArrived
+                },
+                constant.STATUS_THREE: {
+                    "status": RideStatusEnum.STARTED.value,
+                    "message": InfoMessage.rideStarted
+                },
+                constant.STATUS_FOUR: {
+                    "status": RideStatusEnum.COMPLETED.value,
+                    "message": InfoMessage.thankYou
+                },
+            }
+
+            message = InfoMessage.driverStatusUpdated
+            update_status = status_mapping.get(ride_status)
+            if update_status:
+                ride.status = update_status["status"]
+                message = update_status["message"]
             db.add(ride)
             await db.commit()
 
-            data = jsonable_encoder(driver)
-            data["driver_status"] = constant.STATUS_THREE
+            vehicle_data = await UserAuthMethod(Vehicle).find_by_driver_id(db, driver_id)
+            if not vehicle_data:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleNotFound
+                )
+            # emit the book_ride_status api to update the reached status
+            response = jsonable_encoder(driver)
+            response["plate_number"] = vehicle_data.plate_number
+            data = RideResponse().dump(response)
 
+            await RideSocketEmitter.book_ride_status(
+                ride_status=ride.status,
+                ride_request_id=None,
+                ride_id=ride.id,
+                driver_data=data,
+            )
             return self.response(
                 status.HTTP_200_OK,
-                InfoMessage.driverArrived,  # You might want a different message for 'reached'
-                data=data,
+                message,
+                data=jsonable_encoder(ride),
             )
         except Exception:
             return self.response(

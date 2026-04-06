@@ -8,6 +8,7 @@ from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
 from core.utils.message_variable import *
+from config.redis_config import redis_client
 
 
 class UserRideCancelService(BaseResponseService):
@@ -65,6 +66,54 @@ class UserRideCancelService(BaseResponseService):
                 status.HTTP_200_OK,
                 InfoMessage.rideCancelledSuccessfully,
                 data={"ride_id": ride.id, "status": ride.status},
+            )
+
+        except Exception:
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain,
+            )
+
+    async def before_book_ride_cancel_service(self, db: AsyncSession, ride_request_id: str, current_user):
+        """
+        Cancel a ride request by user before ride booking.
+
+        Args:
+            db (AsyncSession): The database session.
+            body (dict): The request body containing ride details.
+
+        Returns:
+            StandardResponse: The response object with status and message.
+        """
+        try:
+            user = await self.get_current_user_details(db, current_user)
+            if not user:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND,
+                    ErrorMessage.userOrDriverNotFound,
+                )
+            redis_key = f"ride:search:{ride_request_id}"
+
+            # Fetch ride request
+            ride_req = await redis_client.hgetall(redis_key)
+            if not ride_req:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                )
+
+            # Update Redis state
+            await redis_client.hmset(
+                redis_key,
+                mapping={
+                    "status": "Cancelled",
+                    "ride_request_id": ride_request_id
+                }
+            )
+
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.beforeRideCancelMsg,
+                data={"ride_request_id": ride_request_id, "status": RideStatusEnum.CANCELLED.value},
             )
 
         except Exception:

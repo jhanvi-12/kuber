@@ -50,7 +50,7 @@ class Ride(Base, TimestampMixin):
     status = Column(
         Integer,
         nullable=constant.STATUS_FALSE,
-        doc="Status of the ride (0 failed, accepted 1, completed 4, etc.)",
+        doc="Status of the ride (0 failed, accepted 1, completed 4)",
     )
     ride_fare = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Fare amount for the ride"

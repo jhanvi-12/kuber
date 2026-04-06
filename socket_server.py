@@ -10,17 +10,13 @@ import socketio
 from aiohttp import web
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.v1.api.ride.models.attribute import RideStatusEnum
-from apps.v1.api.ride.services.get_ride_details_service import \
-    RideDetailService
 from config import env_config
 from config.db_session import session_factory
 from config.redis_config import REDIS_BROKER_URL, SOCKET_CHANNEL, redis_client
-from core.redis_repo import RedisDriverRepo, RedisRideRepo
-from core.utils import constant_variable
 from core.utils.helper import send_request
 from core.utils.message_variable import *
 from core.utils.token_authentication import JWTOAuth2
+from core.redis_repo import RedisDriverRepo
 
 backend_url = env_config.BACKEND_URL
 
@@ -203,62 +199,6 @@ async def driver_location_update(sid, data):
     except Exception as e:
         # Log only — never crash socket server
         print("driver_location_update error:", str(e))
-
-@sio.on("reached_location")
-async def reached_location(sid, data):
-    """This event is used when driver reached to the location."""
-    ride_data = await get_authenticated_user(sid)
-    if not ride_data:
-        return
-
-    data = json.loads(data)
-    ride_request_id = data["ride_request_id"]
-    driver_id = ride_data["user_id"]
-
-    # Guard 1: ride must exist in Redis
-    status = await RedisRideRepo.get_status(ride_request_id)
-    if status != RideStatusEnum.ACCEPTED.value:
-        await sio.emit(
-            "driver_reached",
-            {"message": "Ride not in accepted state"},
-            room=sid,
-        )
-        return
-
-    # Guard 2: same driver only
-    assigned_driver = await RedisRideRepo.get_assigned_driver(ride_request_id)
-    if assigned_driver != driver_id:
-        await sio.emit(
-            "driver_reached",
-            {"message": "This driver is wrong!"},
-            sid
-        )
-        return
-
-    # Update Redis
-    RedisRideRepo.update_status(ride_request_id, "DRIVER_ARRIVED")
-
-    # Update DB (persistent)
-    async with get_async_session() as db:
-        ride_id = await RedisRideRepo.get_db_ride_id(ride_request_id)
-        res = await RideDetailService().driver_reached_service(
-            db, ride_id, driver_id
-        )
-        if res.status_code != constant_variable.STATUS_CODE_200:
-            await sio.emit("driver_reached",
-                            json.loads(res.body)
-                           )
-        else:
-            # Notify customer
-            await sio.emit(
-                "driver_reached",
-                {
-                    "ride_id": ride_id,
-                    "status": InfoMessage.arrivedNow,
-                    "message": "Driver has arrived at your location"
-                },
-                sid
-            )
 
 @sio.on("join_room")
 async def join_room(sid, data):

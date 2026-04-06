@@ -8,16 +8,14 @@ class RideResponse(Schema):
     Schema for ride response
     """
     id = fields.Int()
-    driver_id = fields.Int()
     ride_type = fields.Str()
-    ride_fare = fields.Float()
-    source_longitude = fields.Float()
-    destination_latitude = fields.Float()
-    destination_address = fields.Str()
-    ride_otp = fields.Int()
-    user_id = fields.Int()
-    status = fields.Str()
-    source_latitude = fields.Float()
-    source_address = fields.Str()
-    destination_longitude = fields.Float()
+    longitude = fields.Float()
+    latitude = fields.Float()
+    mobile = fields.String(
+        required=True
+    )
 
+    full_name = fields.String(required=True)
+    email = fields.Email(required=True)
+    plate_number = fields.String(required=True)
+    profile_image = fields.Url(required=False, allow_none=True)
