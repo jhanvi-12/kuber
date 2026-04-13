@@ -78,6 +78,25 @@ class LoginSchema(BaseModel):
     def password_validation(cls, v):
         return ValidationMethods().validate_password(v)
 
+class AdminLoginSchema(BaseModel):
+    """This class represents the admin login schema."""
+
+    email: EmailStr
+    password: str
+
+    class Config:
+        """This class is the schema for user configuration."""
+
+        from_attributes = constant.STATUS_TRUE
+        extra = "forbid"
+        json_schema_extra = {
+            "example": {"email": "johnsmith@example.com", "password": "Password@123"}
+        }
+
+    @field_validator("password")
+    def password_validation(cls, v):
+        return ValidationMethods().validate_password(v)
+
 class DeviceTokenSchema(BaseModel):
     """Schema for generating device token"""
 

@@ -1,10 +1,10 @@
 """This module contains database operations methods."""
 
 from datetime import datetime
-
+from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 from core.utils import constant_variable as constant
 
 
@@ -158,3 +158,94 @@ class UserAuthMethod:
                                         self.model.status == ride_status)
             result = await db.execute(stmt)
             return result.scalars().first()
+
+    async def find_ride_by_user_id(
+            self, db: AsyncSession, user_id: int,
+            ):
+        """This methos is used to fetch the user rides data upto latest 5 days"""
+        async with db:
+            # Query 1: latest 5 rides
+            stmt = (
+                select(self.model)
+                .where(
+                    self.model.user_id == user_id,
+                    self.model.deleted_at == constant.STATUS_NULL
+                )
+                .order_by(desc(self.model.created_at))
+                .limit(5)
+            )
+
+            result = await db.execute(stmt)
+            return result.scalars().all()
+
+    async def find_ride_by_driver_id(
+            self, db: AsyncSession, driver_id: int,
+            ):
+        """This methos is used to fetch the user rides data upto latest 5 days"""
+        async with db:
+            # Query 1: latest 5 rides
+            stmt = (
+                select(self.model)
+                .where(
+                    self.model.driver_id == driver_id,
+                    self.model.deleted_at == constant.STATUS_NULL
+                )
+                .order_by(desc(self.model.created_at))
+                .limit(5)
+            )
+
+            result = await db.execute(stmt)
+            rides = result.scalars().all()
+
+            # Query 2: total count
+            count_stmt = (
+                select(func.count())
+                .select_from(self.model)
+                .where(
+                    self.model.driver_id == driver_id,
+                    self.model.deleted_at == constant.STATUS_NULL
+                )
+            )
+
+            count_result = await db.execute(count_stmt)
+            total_count = count_result.scalar_one()
+
+            return {
+                "rides": rides,
+                "total_trips": total_count
+            }
+
+    async def find_drivers_list_with_pagination(self, db: AsyncSession, page, search_query):
+        """This method is used the fetch the drivers list with search and pagination response."""
+        page_limit = 5
+        async with db:
+            stmt = select(self.model)
+            # Pagination calc
+            offset = (page - 1) * page_limit
+
+            # Search filter
+            if search_query:
+                stmt = stmt.where(self.model.full_name.ilike(f"%{search_query}%"))
+
+            # Total count query
+            count_stmt = select(func.count()).select_from(self.model)
+            if search_query:
+                count_stmt = count_stmt.where(self.model.full_name.ilike(f"%{search_query}%"))
+
+            # Apply pagination
+            stmt = stmt.offset(offset).limit(page_limit)
+
+            # Execute queries
+            result = await db.execute(stmt)
+            drivers = result.scalars().all()
+
+            count_result = await db.execute(count_stmt)
+            total_count = count_result.scalar_one()
+
+            data = {
+                "drivers": drivers,
+                "total": total_count,
+                "page": page,
+                "limit": page_limit
+            }
+            return data

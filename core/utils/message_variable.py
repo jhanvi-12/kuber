@@ -55,6 +55,8 @@ class InfoMessage:
     numberChanged = "Mobile Number changed successfully!"
     emailTemplateSubject = "Your Kuber Cab OTP verification code"
     deviceTokenGenerated = "Device token has been generated successfully"
+    ridesFetched = "Your latest rides have been retrieved successfully."
+    driversFetched = "Drivers fetched successfully"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -71,6 +73,7 @@ class ErrorMessage:
     genericError = "Generic error occurred!"
     expiredToken = "Invalid or expired token!"
     userNotFound = "User not found!"
+    adminNotFound = "Access denied. Only admins are allowed to perform this action."
     somethingWentWrong = "Woops, something's not quite right, please try again!"
     driverSignupFailed = "Driver signup failed!"
     internalServerErr = "An internal server error occurred!"

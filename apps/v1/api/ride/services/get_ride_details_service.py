@@ -11,12 +11,14 @@ from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
-from apps.v1.api.ride.serializer import RideResponse
+from apps.v1.api.ride.serializer import (CustomerRidesResSchema,
+                                         DriverRidesResponseSchema,
+                                         RideResponse)
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
-from core.utils.message_variable import *
 from core.utils import constant_variable as constant
+from core.utils.message_variable import *
 
 
 class RideDetailService(BaseResponseService):
@@ -101,15 +103,15 @@ class RideDetailService(BaseResponseService):
             status_mapping = {
                 constant.STATUS_TWO: {
                     "status": RideStatusEnum.REACHED.value,
-                    "message": InfoMessage.driverArrived
+                    "message": InfoMessage.driverArrived,
                 },
                 constant.STATUS_THREE: {
                     "status": RideStatusEnum.STARTED.value,
-                    "message": InfoMessage.rideStarted
+                    "message": InfoMessage.rideStarted,
                 },
                 constant.STATUS_FOUR: {
                     "status": RideStatusEnum.COMPLETED.value,
-                    "message": InfoMessage.thankYou
+                    "message": InfoMessage.thankYou,
                 },
             }
 
@@ -121,7 +123,9 @@ class RideDetailService(BaseResponseService):
             db.add(ride)
             await db.commit()
 
-            vehicle_data = await UserAuthMethod(Vehicle).find_by_driver_id(db, driver_id)
+            vehicle_data = await UserAuthMethod(Vehicle).find_by_driver_id(
+                db, driver_id
+            )
             if not vehicle_data:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleNotFound
@@ -142,6 +146,81 @@ class RideDetailService(BaseResponseService):
                 message,
                 data=jsonable_encoder(ride),
             )
+        except Exception:
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain,
+            )
+
+    async def fetch_user_rides_service(self, db: AsyncSession, current_user: dict):
+        """This method is used to fetch the customer rides upto 5 days.
+
+        Args:
+            db (AsyncSession): Db Session
+            current_user (dict): user for which need to fetch the rides.
+        """
+        try:
+            user_id = current_user.get("user_id")
+            user_obj = await UserAuthMethod(User).find_by_id(db, user_id)
+            if not user_obj:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
+                )
+            ride_obj = await UserAuthMethod(Ride).find_ride_by_user_id(db, user_id)
+            if not ride_obj:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                )
+
+            data = {
+                "rides": ride_obj   # wrap list inside dict
+            }
+            rides_data = CustomerRidesResSchema().dump(data)
+            for ride in rides_data["rides"]:
+                vehicle_obj = await DriverMethod(Vehicle).find_vehicle_by_driver_id(db, ride["driver_id"])
+                ride["vehicle_image"] = (
+                    f"{aws_config.AWS_BASE_URL}{vehicle_obj.vehicle_image}"
+                    if vehicle_obj.vehicle_image is not None
+                    else constant.STATUS_NULL
+                )
+            return self.response(status.HTTP_200_OK, InfoMessage.ridesFetched, rides_data)
+
+        except Exception:
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain,
+            )
+
+    async def fetch_driver_rides_service(self, db: AsyncSession, current_user: dict):
+        """This method is used to fetch the drivers rides upto 5 days.
+
+        Args:
+            db (AsyncSession): Db Session
+            current_user (dict): user for which need to fetch the rides.
+        """
+        try:
+            driver_id = current_user.get("user_id")
+            driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
+            if not driver_obj:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
+                )
+            ride_obj = await UserAuthMethod(Ride).find_ride_by_driver_id(db, driver_id)
+            if not ride_obj:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                )
+
+            serialized_data = DriverRidesResponseSchema().dump(ride_obj)
+            serialized_data["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
+                if driver_obj.profile_image
+                else constant.STATUS_NULL
+            )
+            return self.response(
+                status.HTTP_200_OK, InfoMessage.ridesFetched, serialized_data
+            )
+
         except Exception:
             return self.response(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,

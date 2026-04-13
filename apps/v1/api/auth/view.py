@@ -22,7 +22,7 @@ getdb = db_config.get_db
 
 
 @authrouter.post("/register")
-async def create_admin_api(
+async def register_api(
     request: Request,
     full_name: str = Form(...),
     email: EmailStr = Form(...),
@@ -68,6 +68,21 @@ async def login_api(body: schema.LoginSchema, db: AsyncSession = Depends(getdb))
         StandardResponse: The response object with status and message.
     """
     response = await LoginService().get_login_service(db, body)
+    return response
+
+@authrouter.post("/admin/login")
+async def admin_login_api(body: schema.AdminLoginSchema, db: AsyncSession = Depends(getdb)):
+    """
+    Performs admin login.
+
+    Args:
+        body (LoginSchema): The request body containing admin login details.
+        db (AsyncSession): The database session.
+
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    response = await LoginService().get_admin_login_service(db, body)
     return response
 
 @authrouter.post("/device/register")

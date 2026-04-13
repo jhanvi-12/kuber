@@ -1,9 +1,9 @@
 """This module is responsible to contain driver API's endpoint"""
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, Query
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from apps.v1.api.ride.services.get_ride_details_service import RideDetailService
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.driver import schema
 from apps.v1.api.driver.services.create_driver_vehicle_service import \
@@ -209,4 +209,56 @@ async def check_plan_expiry_api(
         StandardResponse: The response object with status and message.
     """
     response = await DriverPlanService().check_driver_plan_expiry_service(db)
+    return response
+
+@driverrouter.get("/my_rides")
+async def driver_my_rides_api(
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """
+    Endpoint to fetch the ride details of customer.
+    Args:
+         db (AsyncSession): The database session.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await RideDetailService().fetch_driver_rides_service(
+        db, current_user
+    )
+    return response
+
+@driverrouter.get("/list")
+async def drivers_list_api(
+    db: AsyncSession = Depends(getdb),
+    page: int = Query(1, ge=1),
+    search: str | None = Query(None),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """API endpoint to fetch the drivers list"""
+
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+
+    response = await GetDriverService().fetch_drivers_list_service(
+        db,
+        current_user,
+        page,
+        search
+    )
+    return response
+
+@driverrouter.post("/approve/reject")
+async def driver_approve_reject_api_by_admin(
+    body: schema.DriverStatusSchema,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """API endpoint to fetch the drivers list"""
+
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+
+    response = await GetDriverService().driver_approve_reject_by_admin_service(
+        db,
+        current_user,
+        body.dict()
+    )
     return response
