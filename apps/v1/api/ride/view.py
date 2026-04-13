@@ -1,6 +1,6 @@
 """This module is responsible to contain ride API's endpoint"""
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,6 +103,22 @@ async def update_ride_status_api(
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await RideDetailService().update_ride_status_service(
         db, current_user, body.dict()
+    )
+    return response
+
+@riderouter.get("/my_rides")
+async def my_rides_api(
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """
+    Endpoint to fetch the ride details of customer.
+    Args:
+         db (AsyncSession): The database session.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await RideDetailService().fetch_user_rides_service(
+        db, current_user
     )
     return response
 

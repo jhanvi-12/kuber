@@ -16,7 +16,7 @@ from werkzeug.security import check_password_hash
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from apps.v1.api.auth.models.method import UserAuthMethod
-from apps.v1.api.auth.models.model import User
+from apps.v1.api.auth.models.model import User, Admin
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.plans.models.method import PlansMethod
@@ -25,6 +25,7 @@ from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
+from apps.v1.api.driver.models.attribute import DriverStatusEnum
 
 
 class LoginService(BaseResponseService):
@@ -76,7 +77,7 @@ class LoginService(BaseResponseService):
             )
 
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
-                if user_obj.is_docs_verified != constant.STATUS_TRUE:
+                if user_obj.is_docs_verified != DriverStatusEnum.APPROVED.value:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotVerified
                     )
@@ -85,6 +86,59 @@ class LoginService(BaseResponseService):
                     db, user_obj.id
                 )
                 data["plan_details"] = jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
+
+            token = JWTOAuth2().encode_access_token(token_data)
+            data["access_token"] = (
+                token.decode("utf-8") if isinstance(token, bytes) else token
+            )
+
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.loginSuccess,
+                data,
+            )
+
+        except Exception:
+            return self.response(
+                status.HTTP_400_BAD_REQUEST,
+                ErrorMessage.generalTryAgain,
+            )
+
+    async def get_admin_login_service(self, db: AsyncSession, body):
+        """
+        Performs admin login operation.
+
+        Args:
+            response (Response): The response object.
+            db (AsyncSession): The database session.
+            body (dict): The request body containing login details.
+
+        Returns:
+            StandardResponse: The response object with status and message.
+        """
+        try:
+            body = body.dict()
+            # check if admin email is exists or not.
+            admin_obj = await UserAuthMethod(Admin).find_by_email(db, body.get("email"))
+            if not admin_obj:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
+                )
+            if not check_password_hash(admin_obj.password, body["password"]):
+                return self.response(
+                    status.HTTP_401_UNAUTHORIZED,
+                    ErrorMessage.invalidCred,
+                )
+
+            # Generate auth2 token
+            token_data = {
+                    "user_id": admin_obj.id,
+                    "email": admin_obj.email,
+                    "user_type": "admin",
+                }
+
+            data = jsonable_encoder(admin_obj)
+            data.pop("password")
 
             token = JWTOAuth2().encode_access_token(token_data)
             data["access_token"] = (

@@ -20,7 +20,7 @@ from config import aws_config
 from core.utils import DataBaseMethod, ValidationMethods
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
-
+from apps.v1.api.driver.models.attribute import DriverStatusEnum
 
 class SignUpService(BaseResponseService):
     """
@@ -152,8 +152,8 @@ class SignUpService(BaseResponseService):
                 user_type=user_type.value,
                 mobile=data["contact"],
                 profile_image=data["profile_image"],
-                # TODO: update this is_docs_verified after admin verified it , as of now it's true by default.
-                is_docs_verified=constant.STATUS_TRUE
+                # By default status is pending
+                is_docs_verified=DriverStatusEnum.PENDING.value
             )
 
             return user_obj

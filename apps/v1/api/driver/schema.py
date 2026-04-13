@@ -79,4 +79,19 @@ class SelectPlanSchema(BaseModel):
             }
         }
 
+class DriverStatusSchema(BaseModel):
+    """class for updating the driver status"""
+    driver_id : int
+    status: int
 
+    class Config:
+        """This class is the schema for plan configuration."""
+
+        from_attributes = constant.STATUS_TRUE
+        extra = "forbid"
+        json_schema_extra = {
+            "example": {
+                "driver_id": 1,
+                "status": 1
+            }
+        }

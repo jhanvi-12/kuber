@@ -78,7 +78,7 @@ class Driver(Base, TimestampMixin):
         default=0.0,
         doc="Average rating of the driver",
     )
-    # 🔹 Device-related fields (NEW)
+    # Device-related fields (NEW)
     device_token = Column(
         String(255),
         nullable=constant.STATUS_TRUE,
@@ -95,8 +95,7 @@ class Driver(Base, TimestampMixin):
         doc="Unique device identifier",
     )
     is_docs_verified = Column(
-        Boolean,
-        default=constant.STATUS_FALSE,
-        doc="Status of whether driver's documents are verified or not."
+        Integer,
+        nullable=constant.STATUS_FALSE,
+        doc="Status of the driver (0 pending, accepted 1, rejected 2)",
     )
-

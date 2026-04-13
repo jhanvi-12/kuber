@@ -67,7 +67,7 @@ class User(TimestampMixin, Base):
         default=constant.STATUS_TRUE,
         doc="Whether user wants to receive notifications.",
     )
-    # 🔹 Device-related fields (NEW)
+    # Device-related fields (NEW)
     device_token = Column(
         String(255),
         nullable=constant.STATUS_TRUE,
@@ -134,3 +134,13 @@ class OtpVerification(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+class Admin(TimestampMixin, Base):
+    """Admin table"""
+    __tablename__ = "admin"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(150), unique=True, nullable=False, index=True)
+    password = Column(String(255), nullable=False)
+    mobile = Column(String(15), unique=True, nullable=True)

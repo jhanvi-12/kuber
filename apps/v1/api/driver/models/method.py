@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.v1.api.vehicle.models.model import Vehicle
 from core.utils import constant_variable as constant
 from apps.v1.api.ride.models.attribute import RideStatusEnum
+from apps.v1.api.driver.models.attribute import DriverStatusEnum
 
 
 class DriverMethod:
@@ -35,7 +36,7 @@ class DriverMethod:
         async with db:
             stmt = select(self.model).where(
                 self.model.id == driver_id,
-                self.model.is_docs_verified == constant.STATUS_TRUE,
+                self.model.is_docs_verified == DriverStatusEnum.APPROVED.value,
                 self.model.deleted_at == constant.STATUS_NULL,
             )
             result = await db.execute(stmt)
@@ -55,3 +56,14 @@ class DriverMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_vehicle_by_driver_id(
+            self, db: AsyncSession, driver_id: int
+    ):
+        """This method is used to fetch the vehicle by using driver id."""
+        async with db:
+            stmt = select(self.model).where(
+                self.model.driver_id == driver_id,
+                self.model.deleted_at == constant.STATUS_NULL
+            )
+            result = await db.execute(stmt)
+            return result.scalars().first()
