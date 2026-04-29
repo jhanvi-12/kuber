@@ -95,3 +95,21 @@ class DriverStatusSchema(BaseModel):
                 "status": 1
             }
         }
+
+
+class MyRidesSchema(BaseModel):
+    """Schema for the my rides"""
+    start_date: str
+    end_date: str
+
+    class Config:
+        """This class is the schema for plan configuration."""
+
+        from_attributes = constant.STATUS_TRUE
+        extra = "forbid"
+        json_schema_extra = {
+            "example": {
+                "start_date": "2026-04-01T00:00:00",
+                "end_date": "2026-04-05T23:59:59"
+            }
+        }

@@ -160,51 +160,65 @@ class UserAuthMethod:
             return result.scalars().first()
 
     async def find_ride_by_user_id(
-            self, db: AsyncSession, user_id: int,
+            self, db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime
             ):
         """This methos is used to fetch the user rides data upto latest 5 days"""
         async with db:
-            # Query 1: latest 5 rides
+            # Base filter
+            date_filters = [
+                self.model.user_id == user_id,
+                self.model.deleted_at == constant.STATUS_NULL,
+                self.model.created_at >= start_date,
+                self.model.created_at <= end_date
+            ]
+
+            # Query 1: rides in date range
             stmt = (
                 select(self.model)
-                .where(
-                    self.model.user_id == user_id,
-                    self.model.deleted_at == constant.STATUS_NULL
-                )
+                .where(*date_filters)
                 .order_by(desc(self.model.created_at))
-                .limit(5)
             )
 
             result = await db.execute(stmt)
             return result.scalars().all()
 
     async def find_ride_by_driver_id(
-            self, db: AsyncSession, driver_id: int,
-            ):
-        """This methos is used to fetch the user rides data upto latest 5 days"""
+        self,
+        db: AsyncSession,
+        driver_id: int,
+        start_date: datetime,
+        end_date: datetime
+    ):
+        """Fetch rides within given date range (max 5 days)"""
+
         async with db:
-            # Query 1: latest 5 rides
+            # Base filter
+            date_filters = [
+                self.model.driver_id == driver_id,
+                self.model.deleted_at == constant.STATUS_NULL,
+                self.model.created_at >= start_date,
+                self.model.created_at <= end_date
+            ]
+
+            # Query 1: rides in date range
             stmt = (
                 select(self.model)
-                .where(
-                    self.model.driver_id == driver_id,
-                    self.model.deleted_at == constant.STATUS_NULL
-                )
+                .where(*date_filters)
                 .order_by(desc(self.model.created_at))
-                .limit(5)
             )
 
             result = await db.execute(stmt)
             rides = result.scalars().all()
 
-            # Query 2: total count
+            total_filters = [
+                self.model.driver_id == driver_id,
+                self.model.deleted_at == constant.STATUS_NULL
+            ]
+            # Query 2: total count in same range
             count_stmt = (
                 select(func.count())
                 .select_from(self.model)
-                .where(
-                    self.model.driver_id == driver_id,
-                    self.model.deleted_at == constant.STATUS_NULL
-                )
+                .where(*total_filters)
             )
 
             count_result = await db.execute(count_stmt)

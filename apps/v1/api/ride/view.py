@@ -13,6 +13,7 @@ from apps.v1.api.ride.services.cancel_ride_service import UserRideCancelService
 from apps.v1.api.ride.services.get_ride_details_service import RideDetailService
 from config import db_config
 from core.utils.token_authentication import JWTOAuth2
+from apps.v1.api.driver.schema import MyRidesSchema
 
 getdb = db_config.get_db
 
@@ -106,8 +107,9 @@ async def update_ride_status_api(
     )
     return response
 
-@riderouter.get("/my_rides")
+@riderouter.post("/my_rides")
 async def my_rides_api(
+    body: MyRidesSchema,
     db: AsyncSession = Depends(getdb),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
@@ -118,7 +120,7 @@ async def my_rides_api(
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await RideDetailService().fetch_user_rides_service(
-        db, current_user
+        db, current_user, body.dict()
     )
     return response
 

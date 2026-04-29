@@ -71,7 +71,7 @@ class BaseResponseService:
         Generates a random 6-digit OTP code.
 
         Returns:
-            str: The 6-digit OTP code.
+            str: The 4-digit OTP code.
         """
         return random.randint(1000, 9999)
 

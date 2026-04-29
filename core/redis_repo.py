@@ -284,10 +284,10 @@ class RedisDriverRepo:
         device_token: str
     ):
         """This method is storing the geo location and ride_type, along with device_token."""
-        # 1️⃣ Store geo location
+        # Store geo location
         await redis_client.geoadd(cls._geo_key(ride_type),(lon, lat, str(driver_id)))
 
-        # 2️⃣ Store metadata
+        # Store metadata
         await redis_client.hmset(
             f"driver:meta:{driver_id}",
             mapping={
@@ -297,7 +297,7 @@ class RedisDriverRepo:
             }
         )
 
-        # ✅ Heartbeat
+        # Heartbeat
         await redis_client.setex(
             f"driver:alive:{driver_id}",
             1000,

@@ -26,6 +26,7 @@ from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
+from apps.v1.api.auth.models.model import OtpVerification
 
 
 class LoginService(BaseResponseService):
@@ -65,9 +66,6 @@ class LoginService(BaseResponseService):
                 }
 
             data = jsonable_encoder(user_obj)
-            # if user_type == "customer":
-            #     user_obj.ride_otp = self.generate_otp_code()
-            #     await db.commit()
 
             data.pop("password")
             data["profile_image"] = (
@@ -77,7 +75,7 @@ class LoginService(BaseResponseService):
             )
 
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
-                if user_obj.is_docs_verified != DriverStatusEnum.APPROVED.value:
+                if user_obj.is_docs_verified != int(DriverStatusEnum.APPROVED.value):
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotVerified
                     )
@@ -91,6 +89,22 @@ class LoginService(BaseResponseService):
             data["access_token"] = (
                 token.decode("utf-8") if isinstance(token, bytes) else token
             )
+
+            # TODO: remove this when sendgrid email verification will be started as api key is expired for sendgrid.
+            if user_obj.user_type == UserTypeEnum.CUSTOMER.value:
+                user_id, driver_id = user_obj.id, constant.STATUS_NULL
+            else:
+                user_id, driver_id = user_obj.id, constant.STATUS_NULL
+
+            otp_code = 1234
+            otp_obj = OtpVerification(
+                user_id=user_id,
+                email=user_obj.email,
+                driver_id=driver_id,
+                otp_code=otp_code
+            )
+            db.add(otp_obj)
+            await db.commit()
 
             return self.response(
                 status.HTTP_200_OK,
