@@ -118,9 +118,9 @@ class GetDriverService(BaseResponseService):
                 )
 
             is_docs_verified = (
-                DriverStatusEnum.APPROVED.value
+                int(DriverStatusEnum.APPROVED.value)
                 if body.get("status") == constant.STATUS_ONE
-                else DriverStatusEnum.REJECTED.value
+                else int(DriverStatusEnum.REJECTED.value)
             )
             driver_obj.is_docs_verified = is_docs_verified
             db.add(driver_obj)

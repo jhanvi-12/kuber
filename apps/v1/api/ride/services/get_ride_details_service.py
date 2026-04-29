@@ -152,7 +152,7 @@ class RideDetailService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
-    async def fetch_user_rides_service(self, db: AsyncSession, current_user: dict):
+    async def fetch_user_rides_service(self, db: AsyncSession, current_user: dict, body: dict):
         """This method is used to fetch the customer rides upto 5 days.
 
         Args:
@@ -161,12 +161,14 @@ class RideDetailService(BaseResponseService):
         """
         try:
             user_id = current_user.get("user_id")
+            start_date = body.get("start_date")
+            end_date = body.get("end_date")
             user_obj = await UserAuthMethod(User).find_by_id(db, user_id)
             if not user_obj:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
                 )
-            ride_obj = await UserAuthMethod(Ride).find_ride_by_user_id(db, user_id)
+            ride_obj = await UserAuthMethod(Ride).find_ride_by_user_id(db, user_id, start_date, end_date)
             if not ride_obj:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
@@ -186,12 +188,12 @@ class RideDetailService(BaseResponseService):
             return self.response(status.HTTP_200_OK, InfoMessage.ridesFetched, rides_data)
 
         except Exception:
-            return self.response(
+            return self.response(   
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain,
             )
 
-    async def fetch_driver_rides_service(self, db: AsyncSession, current_user: dict):
+    async def fetch_driver_rides_service(self, db: AsyncSession, current_user: dict, body: dict):
         """This method is used to fetch the drivers rides upto 5 days.
 
         Args:
@@ -200,12 +202,14 @@ class RideDetailService(BaseResponseService):
         """
         try:
             driver_id = current_user.get("user_id")
+            start_date = body.get("start_date")
+            end_date = body.get("end_date")
             driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
             if not driver_obj:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
                 )
-            ride_obj = await UserAuthMethod(Ride).find_ride_by_driver_id(db, driver_id)
+            ride_obj = await UserAuthMethod(Ride).find_ride_by_driver_id(db, driver_id, start_date, end_date)
             if not ride_obj:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound

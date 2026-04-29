@@ -21,30 +21,30 @@ driverrouter = APIRouter()
 getdb = db_config.get_db
 
 
-@driverrouter.post("/vehicle_details")
-async def driver_vehicle_details_api(
-    body: schema.DriverVehicleDetailsSchema,
-    request: Request,
-    authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
-    db: AsyncSession = Depends(getdb),
-):
-    """
-    Updates the vehicle details for the driver.
+# @driverrouter.post("/vehicle_details")
+# async def driver_vehicle_details_api(
+#     body: schema.DriverVehicleDetailsSchema,
+#     request: Request,
+#     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
+#     db: AsyncSession = Depends(getdb),
+# ):
+#     """
+#     Updates the vehicle details for the driver.
 
-    Args:
-        request (Request): The request object.
-        body (DriverVehicleDetailsSchema): The request body containing vehicle details.
-        authrouter (HTTPAuthorizationCredentials): The authorization credentials.
-        db (AsyncSession): The database session.
+#     Args:
+#         request (Request): The request object.
+#         body (DriverVehicleDetailsSchema): The request body containing vehicle details.
+#         authrouter (HTTPAuthorizationCredentials): The authorization credentials.
+#         db (AsyncSession): The database session.
 
-    Returns:
-        StandardResponse: The response object with status and message.
-    """
-    current_user = request.state.user_data
-    response = await DriverService().create_driver_vehicle_service(
-        db, body, current_user
-    )
-    return response
+#     Returns:
+#         StandardResponse: The response object with status and message.
+#     """
+#     current_user = request.state.user_data
+#     response = await DriverService().create_driver_vehicle_service(
+#         db, body, current_user
+#     )
+#     return response
 
 @driverrouter.post("/vehicle/complete-profile")
 async def driver_vehicle_complete_profile(
@@ -105,45 +105,45 @@ async def get_driver_vehicle_details_api(
     return response
 
 
-@driverrouter.post("/vehicle_docs")
-async def upload_driver_vehicle_docs(
-    request: Request,
-    db: AsyncSession = Depends(getdb),
-    license_number: str = Form(...),
-    license_expiration_date: str = Form(...),
-    vehicle_insurance_expiration_date: str = Form(...),
-    license_image: UploadFile = File(...),
-    vehicle_image: UploadFile = File(...),
-    vehicle_insurance_image: UploadFile = File(...),
-    authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
-):
-    """
-    Uploads driver license and vehicle documents with images.
-    Args:
-        request (Request): The request object.
-        license_number (str): The driver's license number.
-        license_expiration_date (str): The expiration date of the driver's license.
-        vehicle_insurance_expiration_date (str): The expiration date of the vehicle insurance.
-        license_image (UploadFile): The driver's license image file.
-        vehicle_image (UploadFile): The vehicle image file.
-        vehicle_insurance_image (UploadFile): The vehicle insurance image file.
+# @driverrouter.post("/vehicle_docs")
+# async def upload_driver_vehicle_docs(
+#     request: Request,
+#     db: AsyncSession = Depends(getdb),
+#     license_number: str = Form(...),
+#     license_expiration_date: str = Form(...),
+#     vehicle_insurance_expiration_date: str = Form(...),
+#     license_image: UploadFile = File(...),
+#     vehicle_image: UploadFile = File(...),
+#     vehicle_insurance_image: UploadFile = File(...),
+#     authrorize: HTTPAuthorizationCredentials = Depends(oauth2),
+# ):
+#     """
+#     Uploads driver license and vehicle documents with images.
+#     Args:
+#         request (Request): The request object.
+#         license_number (str): The driver's license number.
+#         license_expiration_date (str): The expiration date of the driver's license.
+#         vehicle_insurance_expiration_date (str): The expiration date of the vehicle insurance.
+#         license_image (UploadFile): The driver's license image file.
+#         vehicle_image (UploadFile): The vehicle image file.
+#         vehicle_insurance_image (UploadFile): The vehicle insurance image file.
 
-    Returns:
-        StandardResponse: The response object with status and message.
-    """
-    data = {
-        "license_number": license_number,
-        "license_expiration_date": license_expiration_date,
-        "vehicle_insurance_expiration_date": vehicle_insurance_expiration_date,
-        "license_image": license_image,
-        "vehicle_image": vehicle_image,
-        "vehicle_insurance_image": vehicle_insurance_image,
-    }
-    current_user = request.state.user_data
-    response = await DriverService().upload_driver_vehicle_docs(
-        request, db, data, current_user
-    )
-    return response
+#     Returns:
+#         StandardResponse: The response object with status and message.
+#     """
+#     data = {
+#         "license_number": license_number,
+#         "license_expiration_date": license_expiration_date,
+#         "vehicle_insurance_expiration_date": vehicle_insurance_expiration_date,
+#         "license_image": license_image,
+#         "vehicle_image": vehicle_image,
+#         "vehicle_insurance_image": vehicle_insurance_image,
+#     }
+#     current_user = request.state.user_data
+#     response = await DriverService().upload_driver_vehicle_docs(
+#         request, db, data, current_user
+#     )
+#     return response
 
 
 @driverrouter.post("/select_plan")
@@ -211,8 +211,9 @@ async def check_plan_expiry_api(
     response = await DriverPlanService().check_driver_plan_expiry_service(db)
     return response
 
-@driverrouter.get("/my_rides")
+@driverrouter.post("/my_rides")
 async def driver_my_rides_api(
+    body: schema.MyRidesSchema,
     db: AsyncSession = Depends(getdb),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
@@ -223,7 +224,7 @@ async def driver_my_rides_api(
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await RideDetailService().fetch_driver_rides_service(
-        db, current_user
+        db, current_user, body.dict()
     )
     return response
 
