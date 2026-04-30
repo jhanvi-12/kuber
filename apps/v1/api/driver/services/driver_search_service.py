@@ -26,7 +26,7 @@ class DriverSearchService:
     }
 
     @staticmethod
-    async def start_wave(ride_request_id, ride_type, lat, lng):
+    async def start_wave(ride_request_id, ride_type, lat, lng, user_data):
         """This method is used to find the drivers in waves from redis
         and send the notification to nearby drivers."""
         while True:
@@ -85,6 +85,8 @@ class DriverSearchService:
                     device_token,
                     constant_variable.RIDE_REQUEST_TITLE,
                     constant_variable.RIDE_REQUEST_BODY,
+                    user_data
+
                 )
                 # MARK AS NOTIFIED (REUSE SAME SET)
                 await RedisRideRepo.add_candidates(ride_request_id, [driver_id])

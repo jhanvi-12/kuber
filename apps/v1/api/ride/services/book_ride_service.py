@@ -17,7 +17,6 @@ from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.driver.services.driver_search_service import \
     DriverSearchService
-from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from core.redis_repo import RedisRideRepo
 from core.utils import constant_variable as constant
@@ -172,11 +171,7 @@ class BookRideService(BaseResponseService):
 
             # Generate a Ride Request ID for the temp in redis.
             ride_request_id = str(uuid.uuid4())
-            # Store ride request in the redis
-            await RedisRideRepo.init_search_state(
-                ride_request_id=ride_request_id,
-                user_id=current_user["user_id"],
-                payload={
+            payload = {
                     "pickup_latitude": body["pickup_latitude"],
                     "pickup_longitude": body["pickup_longitude"],
                     "pickup_address": body["pickup_address"],
@@ -186,8 +181,24 @@ class BookRideService(BaseResponseService):
                     "ride_type": body["ride_type"],
                     "ride_fare": body["ride_fare"]
                 }
+            # Store ride request in the redis
+            await RedisRideRepo.init_search_state(
+                ride_request_id=ride_request_id,
+                user_id=current_user["user_id"],
+                payload=payload
             )
             # Emit searching state
+            user_data = {
+                "pickup_latitude": body["pickup_latitude"],
+                "pickup_longitude": body["pickup_longitude"],
+                "pickup_address": body["pickup_address"],
+                "destination_latitude": body["destination_latitude"],
+                "destination_longitude": body["destination_longitude"],
+                "destination_address": body["destination_address"],
+                "ride_fare": body["ride_fare"],
+                "username": user_obj.full_name,
+                "profile_image": user_obj.profile_image
+            }
             await RideSocketEmitter.ride_searching(ride_request_id)
 
             # Start driver search ASYNC (background)
@@ -195,7 +206,8 @@ class BookRideService(BaseResponseService):
                 ride_request_id,
                 body.get("ride_type"),
                 body.get("pickup_latitude"),
-                body.get("pickup_longitude")
+                body.get("pickup_longitude"),
+                user_data
             ))
 
             return self.response(

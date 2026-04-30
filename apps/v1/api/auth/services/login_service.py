@@ -75,11 +75,6 @@ class LoginService(BaseResponseService):
             )
 
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
-                if user_obj.is_docs_verified != int(DriverStatusEnum.APPROVED.value):
-                    return self.response(
-                        status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotVerified
-                    )
-
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id
                 )
@@ -89,22 +84,6 @@ class LoginService(BaseResponseService):
             data["access_token"] = (
                 token.decode("utf-8") if isinstance(token, bytes) else token
             )
-
-            # TODO: remove this when sendgrid email verification will be started as api key is expired for sendgrid.
-            if user_obj.user_type == UserTypeEnum.CUSTOMER.value:
-                user_id, driver_id = user_obj.id, constant.STATUS_NULL
-            else:
-                user_id, driver_id = user_obj.id, constant.STATUS_NULL
-
-            otp_code = 1234
-            otp_obj = OtpVerification(
-                user_id=user_id,
-                email=user_obj.email,
-                driver_id=driver_id,
-                otp_code=otp_code
-            )
-            db.add(otp_obj)
-            await db.commit()
 
             return self.response(
                 status.HTTP_200_OK,

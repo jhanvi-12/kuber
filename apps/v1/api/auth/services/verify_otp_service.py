@@ -95,20 +95,29 @@ class VerifyOtpService(BaseResponseService):
             email = body["email"]
 
             # Generate otp for the user
-            otp_obj = await self.create_otp_code_service(db, email)
-            if otp_obj.status_code != status.HTTP_200_OK:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
-                )
-            otp_code = json.loads(otp_obj.body)["data"]
+            # TODO : when sendgrid email is available then uncomment it 
+            # otp_obj = await self.create_otp_code_service(db, email)
+            otp_code = 1234
+            otp_obj = OtpVerification(
+                email=email,
+                otp_code=otp_code
+            )
+            db.add(otp_obj)
+            await db.commit()
 
-            # Send OTP to the user's email using sendgrid.
-            email_res = send_otp_email(email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO)
+            # if otp_obj.status_code != status.HTTP_200_OK:
+            #     return self.response(
+            #         status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
+            #     )
+            # otp_code = json.loads(otp_obj.body)["data"]
 
-            if not email_res:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
-                )
+            # # Send OTP to the user's email using sendgrid.
+            # email_res = send_otp_email(email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO)
+
+            # if not email_res:
+            #     return self.response(
+            #         status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
+            #     )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.otpGenerationSuccess
             )
