@@ -9,6 +9,10 @@ Methods:
     get_login_service(response, db, body): Performs the login operation.
 """
 
+import uuid
+
+import uuid
+
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +31,7 @@ from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
 from apps.v1.api.auth.models.model import OtpVerification
-
+from apps.v1.api.auth.models.model import Session
 
 class LoginService(BaseResponseService):
     """This class represents the login service"""
@@ -58,9 +62,11 @@ class LoginService(BaseResponseService):
                     ErrorMessage.invalidCred,
                 )
 
+            jti = str(uuid.uuid4())
             # Generate auth2 token
             token_data = {
                     "user_id": user_obj.id,
+                    "jti": jti,
                     "email": user_obj.email,
                     "user_type": user_obj.user_type.value,
                 }
@@ -84,6 +90,19 @@ class LoginService(BaseResponseService):
             data["access_token"] = (
                 token.decode("utf-8") if isinstance(token, bytes) else token
             )
+
+            if user_obj.user_type == UserTypeEnum.DRIVER.value:
+                user_id, driver_id = None, user_obj.id
+            else:
+                user_id, driver_id = user_obj.id, None
+
+            session = Session(
+                user_id=user_id,
+                driver_id=driver_id,
+                session_id=jti,
+            )
+            db.add(session)
+            await db.commit()
 
             return self.response(
                 status.HTTP_200_OK,

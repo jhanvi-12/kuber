@@ -8,7 +8,6 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
-from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import OtpVerification, User
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
@@ -17,6 +16,7 @@ from core.utils import constant_variable as constant
 from core.utils.db_method import DataBaseMethod
 from core.utils.email_service import EmailService
 from core.utils.message_variable import ErrorMessage, InfoMessage
+from apps.v1.api.auth.serializer import UserProfileSchema
 
 
 class UserProfileService(BaseResponseService):
@@ -37,12 +37,11 @@ class UserProfileService(BaseResponseService):
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
-            data = jsonable_encoder(user_obj)
-            data.pop("password")
-            data["profile_image"] = f"{aws_config.AWS_BASE_URL}{data["profile_image"]}" if data.get("profile_image") else None
+            res = UserProfileSchema().dump(jsonable_encoder(user_obj))
+            res["profile_image"] = f"{aws_config.AWS_BASE_URL}{res['profile_image']}" if res.get("profile_image") else None
 
             return self.response(
-                status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, data
+                status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, res
             )
 
         except Exception:

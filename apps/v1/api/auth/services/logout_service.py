@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import Session
 from apps.v1.api.base_service import BaseResponseService
-from core.utils import message_variable
-
+from core.utils.token_authentication import JWTOAuth2
+from core.utils.message_variable import ErrorMessage, InfoMessage
+from apps.v1.api.auth.models.attribute import UserTypeEnum
 
 class UserLogoutService(BaseResponseService):
     """Service class for retrieving user details."""
 
-    async def get_logout_service(self, db: AsyncSession, user_id: int, session_id: str):
+    async def get_logout_service(self, db: AsyncSession, current_user: dict, session_id):
         """This method is called when the user is logged out.
 
         Args:
@@ -23,18 +24,44 @@ class UserLogoutService(BaseResponseService):
         Returns:
             StandardResponse: A response object with status and message.
         """
-        session_obj = await UserAuthMethod(Session).find_by_session_id(
-            db, user_id, session_id
-        )
-        if not session_obj:
-            return self.response(
-                status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid session ID"
+        try:
+
+            payload = JWTOAuth2().verify_access_token(session_id)
+            jti = payload.get("jti")
+            user_id = payload.get("user_id")
+
+            if not jti:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST,
+                    ErrorMessage.expiredToken
+                )
+
+            # Find session
+            if current_user.get("user_type") == UserTypeEnum.DRIVER.value:
+                user_id, driver_id = None, current_user.get("user_id")
+            else:
+                user_id, driver_id = current_user.get("user_id"), None
+            session_obj = await UserAuthMethod(Session).find_by_session_id(
+                db, driver_id, user_id, jti
             )
 
-        session_obj.expires_at = datetime.utcnow()
-        db.add(session_obj)
-        await db.commit()
+            if not session_obj:
+                return self.response(
+                    status.HTTP_401_UNAUTHORIZED,
+                    ErrorMessage.expiredToken
+                )
 
-        return self.response(
-            status_code=status.HTTP_200_OK, message=message_variable.LOGOUT_SUCCESSFULLY
-        )
+            # DELETE session (important)
+            await db.delete(session_obj)
+            await db.commit()
+
+            return self.response(
+                status.HTTP_200_OK,
+                InfoMessage.logoutSuccess
+            )
+
+        except Exception:
+            return self.response(
+                status.HTTP_401_UNAUTHORIZED,
+                ErrorMessage.internalServerErr
+            )

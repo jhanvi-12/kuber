@@ -4,7 +4,7 @@ import asyncio
 import math
 import uuid
 from typing import Dict, List
-
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 import numpy as np
 import pandas as pd
 from fastapi import status
@@ -213,7 +213,8 @@ class BookRideService(BaseResponseService):
             return self.response(
                 status.HTTP_200_OK, InfoMessage.findingDrivers,
                 {
-                    "ride_request_id": ride_request_id
+                    "ride_request_id": ride_request_id,
+                    "status": RideStatusEnum.INITIAL.value
                 }
             )
 

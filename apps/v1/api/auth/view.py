@@ -1,6 +1,6 @@
 """This module is responsible to contain API's endpoint"""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from apps.v1.api.auth.services.signup_service import SignUpService
 from apps.v1.api.auth.services.user_profile_service import UserProfileService
 from apps.v1.api.auth.services.verify_otp_service import VerifyOtpService
 from apps.v1.api.pagination_service import oauth2
+from apps.v1.api.auth.services.logout_service import UserLogoutService
 from config import db_config
 from core.utils.token_authentication import JWTOAuth2
 
@@ -105,19 +106,19 @@ async def register_device_api(
     response = await LoginService().create_device_token(db, body, current_user)
     return response
 
-# @authrouter.post("/logout")
-# async def logout_api(
-#     request: Request,
-#     db: AsyncSession = Depends(getdb),
-#     authorize: HTTPAuthorizationCredentials = Depends(oauth2),
-# ):
-#     """
-#     Performs user logout.
-#     """
-#     user_id = request.state.user_id
-#     session_id = authorize.credentials
-#     response = await UserLogoutService().get_logout_service(db, user_id, session_id)
-#     return response
+@authrouter.post("/logout")
+async def logout_api(
+    request: Request,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """
+    Performs user logout.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    session_id = authorize.credentials
+    response = await UserLogoutService().get_logout_service(db, current_user, session_id)
+    return response
 
 
 @authrouter.post("/forgot_password")

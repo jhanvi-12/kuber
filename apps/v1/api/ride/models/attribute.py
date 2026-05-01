@@ -6,6 +6,7 @@ class RideStatusEnum(str, Enum):
     """
     Enum for ride status.
     """
+    INITIAL = -1
     FAILED = 0
     ACCEPTED = 1
     REACHED = 2

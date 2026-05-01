@@ -319,4 +319,3 @@ class RedisDriverRepo:
             "is_available",
             constant_variable.STATUS_ZERO
         )
-
