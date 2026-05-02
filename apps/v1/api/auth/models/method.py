@@ -36,11 +36,13 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
-    async def find_by_session_id(self, db: AsyncSession, user_id: int, session_id: str):
+    async def find_by_session_id(self, db: AsyncSession, driver_id, user_id, session_id: str):
         """This function will return the user session object"""
         async with db:  # Ensure the session context
             stmt = select(self.model).where(
-                self.model.user_id == user_id, self.model.session_id == session_id
+                self.model.user_id == user_id,
+                self.model.driver_id == driver_id,
+                self.model.session_id == session_id
             )
 
             result = await db.execute(stmt)

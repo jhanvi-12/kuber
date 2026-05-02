@@ -144,3 +144,15 @@ class Admin(TimestampMixin, Base):
     email = Column(String(150), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=False)
     mobile = Column(String(15), unique=True, nullable=True)
+
+class Session(TimestampMixin, Base):
+    """Table to manage user sessions for JWT token tracking and invalidation."""
+    __tablename__ = "sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True, index=True)
+
+    # store jti or session_id from JWT
+    session_id = Column(String(255), unique=True, index=True, nullable=False)
+
