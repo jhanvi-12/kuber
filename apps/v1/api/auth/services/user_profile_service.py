@@ -38,7 +38,11 @@ class UserProfileService(BaseResponseService):
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
             res = UserProfileSchema().dump(jsonable_encoder(user_obj))
-            res["profile_image"] = f"{aws_config.AWS_BASE_URL}{res['profile_image']}" if res.get("profile_image") else None
+            res["profile_image"] = (
+                f"{aws_config.AWS_BASE_URL}{res['profile_image']}"
+                if res.get("profile_image")
+                else None
+            )
 
             return self.response(
                 status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, res
@@ -78,8 +82,14 @@ class UserProfileService(BaseResponseService):
                 file_obj = user_obj.profile_image
 
             user_obj.profile_image = file_obj
-            user_obj.full_name = body.get("full_name") if body.get("full_name") is not None else user_obj.full_name
-            user_obj.email = body.get("email") if body.get("email") is not None else user_obj.email
+            user_obj.full_name = (
+                body.get("full_name")
+                if body.get("full_name") is not None
+                else user_obj.full_name
+            )
+            user_obj.email = (
+                body.get("email") if body.get("email") is not None else user_obj.email
+            )
 
             model = (
                 Driver
@@ -92,11 +102,13 @@ class UserProfileService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.errorSavingUser
                 )
 
-            data = jsonable_encoder(user_obj)
+            data = UserProfileSchema().dump(jsonable_encoder(user_obj))
             data["profile_image"] = (
-                    f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
+                f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
+                if data.get("profile_image") is not None
+                else None
             )
-            data.pop("password")
+
             return self.response(status.HTTP_200_OK, InfoMessage.userUpdated, data)
         except Exception:
             return self.response(

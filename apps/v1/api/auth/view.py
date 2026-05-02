@@ -220,7 +220,7 @@ async def get_edit_user_profile_api(
     full_name: str = Form(None),
     email: EmailStr = Form(None),
     profile_image: UploadFile = File(None),
-    authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
     db: AsyncSession = Depends(getdb),
 ):
     """
@@ -232,7 +232,7 @@ async def get_edit_user_profile_api(
     Returns:
         StandardResponse: The response object with status and message.
     """
-    current_user = request.state.user_data
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     body = {
         "full_name": full_name,
         "email": email,

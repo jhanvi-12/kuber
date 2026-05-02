@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, messaging
 from fastapi import status
+from config import env_config
 
 from apps.v1.api.base_service import BaseResponseService
 from core.utils.message_variable import ErrorMessage, InfoMessage
@@ -18,12 +19,15 @@ class DriverFirebaseNotification(BaseResponseService):
 
     _firebase_initialized: bool = False
 
-    async def _initialize_firebase(self) -> bool:
-        """Initialize Firebase app if not already initialized."""
+    async def _initialize_firebase(self, user_type: str = None) -> bool:
+        """Initialize Firebase app if not already ini   tialized."""
         try:
             # Firebase-safe check
             if not firebase_admin._apps:
-                cred = credentials.Certificate("kubercab-730b1e547e.json")
+                if user_type == "driver":
+                    cred = credentials.Certificate(env_config.DRIVER_FIREBASE_JSON)
+                else:
+                    cred = credentials.Certificate(env_config.USER_FIREBASE_JSON)
                 firebase_admin.initialize_app(cred)
                 logger.info("Firebase initialized successfully.")
             return True
@@ -59,7 +63,8 @@ class DriverFirebaseNotification(BaseResponseService):
             body: Body of the notification.
             data: Optional extra payload.
         """
-        if not await self._initialize_firebase():
+        user_type = data.get("user_type") if data else None
+        if not await self._initialize_firebase(user_type):
             return self.response(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain
