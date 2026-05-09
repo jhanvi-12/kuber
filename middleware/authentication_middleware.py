@@ -97,3 +97,24 @@ async def authenticate(
         authorize.split(" ")[1]
     )  # This will raise an exception if the token is missing or invalid
     return token_data
+
+class MaxBodySizeMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to limit the maximum size of the request body.
+
+    This middleware checks the `Content-Length` header of incoming requests and
+    returns a 413 Payload Too Large response if the body exceeds the specified limit.
+    """
+    def __init__(self, app, max_body_size: int):
+        super().__init__(app)
+        self.max_body_size = max_body_size
+
+    async def dispatch(self, request: Request, call_next):
+        """Checks the Content-Length header and limits the request body size."""
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_body_size:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "File too large. Maximum allowed size is 10MB."},
+            )
+        return await call_next(request)

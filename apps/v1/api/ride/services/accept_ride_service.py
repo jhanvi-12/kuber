@@ -5,7 +5,8 @@ from datetime import datetime
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from apps.v1.api.driver.services.driver_firebase_notification import \
+    DriverFirebaseNotification
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
@@ -119,6 +120,21 @@ class RideAcceptService(BaseResponseService):
                 driver_data=result
             )
 
+            try:
+                await DriverFirebaseNotification().send_notification_to_drivers(
+                    user_data.device_token,
+                    InfoMessage.reqAccepted,
+                    InfoMessage.driverHeading,
+                    None
+                )
+                print(f" Notification sent successfully to user {user_data.id}")
+                return True
+
+            except Exception as e:
+                print(
+                    f" Failed to send notification to driver {driver_id}: {str(e)}",
+                    exc_info=True
+                )
             response = jsonable_encoder(user_data)
             response.pop("device_token")
             response.pop("password")

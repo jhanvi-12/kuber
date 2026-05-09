@@ -57,6 +57,7 @@ class InfoMessage:
     deviceTokenGenerated = "Device token has been generated successfully"
     ridesFetched = "Your latest rides have been retrieved successfully."
     driversFetched = "Drivers fetched successfully"
+    driverVehicleUpdatedSuccess = "Driver vehicle details are updated successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""

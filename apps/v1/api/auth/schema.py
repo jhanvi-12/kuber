@@ -156,16 +156,20 @@ class VerifyOtpSchema(BaseModel):
 class ResetPasswordSchema(BaseModel):
     """This class is used to reset password."""
 
+    email: EmailStr
     new_password: str
     confirm_password: str
+    user_type: str
 
     model_config = ConfigDict(
         from_attributes=constant.STATUS_TRUE,
         extra="forbid",
         json_schema_extra={
             "example": {
+                "email": "abc@gmail.com",
                 "new_password": "Password@123",
                 "confirm_password": "Password@123",
+                "user_type": "customer/driver"
             }
         },
     )
