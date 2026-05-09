@@ -146,8 +146,7 @@ async def forgot_password_api(
 @authrouter.post("/reset_password")
 async def reset_password_api(
     body: schema.ResetPasswordSchema,
-    db: AsyncSession = Depends(getdb),
-    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+    db: AsyncSession = Depends(getdb)
 ):
     """Reset password for user.
 
@@ -155,9 +154,8 @@ async def reset_password_api(
         body (schema.ResetPasswordSchema): The body containing reset password schema.
         db (AsyncSession, optional): database session Defaults to Depends(getdb).
     """
-    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await ResetPasswordService().get_reset_password_service(
-        db, body, current_user
+        db, body
     )
     return response
 

@@ -30,7 +30,6 @@ class S3Manager:
         Upload a file to a dynamically resolved S3 path.
         """
         try:
-            print("+++++", s3_path)
             self.s3_client.upload_fileobj(
                 file_obj,
                 self.bucket_name,

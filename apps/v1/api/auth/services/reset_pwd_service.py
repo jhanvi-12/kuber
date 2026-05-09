@@ -34,7 +34,7 @@ def get_password_hash(password: str) -> str:
 class ResetPasswordService(BaseResponseService):
     """Reset password functionality"""
 
-    async def get_reset_password_service(self, db: AsyncSession, body, current_user):
+    async def get_reset_password_service(self, db: AsyncSession, body):
         """
         Changes the password for the logged-in user (in-app change password).
         Args:
@@ -46,6 +46,15 @@ class ResetPasswordService(BaseResponseService):
         """
         try:
             body = body.dict() if hasattr(body, "dict") else body
+            email = body.get("email")
+            # Checking email against existing email in db.
+            model = Driver if body.get("user_type") == UserTypeEnum.DRIVER.value else User
+            user_obj = await UserAuthMethod(model).find_by_email(db, email)
+            if not user_obj:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
+                )
+
             new_password = body.get("new_password")
             confirm_password = body.get("confirm_password")
 
@@ -57,17 +66,6 @@ class ResetPasswordService(BaseResponseService):
             if new_password != confirm_password:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.pwdNotMatch
-                )
-
-            # Fetch user object
-            user_obj = await UserAuthMethod(
-                User
-                if current_user["user_type"] == UserTypeEnum.CUSTOMER.value
-                else Driver
-            ).find_by_id(db, current_user["user_id"])
-            if not user_obj:
-                return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
                 )
 
             user_obj.password = generate_password_hash(new_password)

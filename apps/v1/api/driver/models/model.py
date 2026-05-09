@@ -75,7 +75,7 @@ class Driver(Base, TimestampMixin):
     review = Column(
         Float,
         nullable=constant.STATUS_TRUE,
-        default=0.0,
+        default=4.1,
         doc="Average rating of the driver",
     )
     # Device-related fields (NEW)
@@ -99,3 +99,7 @@ class Driver(Base, TimestampMixin):
         nullable=constant.STATUS_FALSE,
         doc="Status of the driver (0 pending, accepted 1, rejected 2)",
     )
+    reason = Column(
+        String(255), nullable=constant.STATUS_TRUE, doc="Reason for rejecting the driver"
+    )
+

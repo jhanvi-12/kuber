@@ -20,6 +20,7 @@ class RideResponse(Schema):
     email = fields.Email(required=True)
     plate_number = fields.String(required=True)
     profile_image = fields.Url(required=False, allow_none=True)
+    review = fields.Float(required=False, allow_none=True)
 
 
 class RideSchema(Schema):

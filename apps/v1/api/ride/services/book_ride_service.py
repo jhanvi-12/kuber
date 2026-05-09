@@ -197,8 +197,7 @@ class BookRideService(BaseResponseService):
                 "destination_address": body["destination_address"],
                 "ride_fare": body["ride_fare"],
                 "username": user_obj.full_name,
-                "user_type": user_obj.user_type,
-                "profile_image": user_obj.profile_image
+                "mobile_number": user_obj.mobile
             }
             await RideSocketEmitter.ride_searching(ride_request_id)
 

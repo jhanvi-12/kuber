@@ -23,7 +23,7 @@ from apps.v1.api.ride.view import riderouter
 from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
-from middleware.authentication_middleware import AuthenticateMiddleware
+from middleware.authentication_middleware import AuthenticateMiddleware, MaxBodySizeMiddleware
 
 
 def init_routers(app_: FastAPI) -> None:
@@ -60,6 +60,10 @@ def make_middleware() -> list[Middleware]:
         ),
         Middleware(
             S3PathMiddleware, config_path=f"{project_path.S3_ROOT}/s3_paths_config.json"
+        ),
+        Middleware(
+            MaxBodySizeMiddleware,
+            max_body_size=10 * 1024 * 1024  # 10MB
         ),
         Middleware(AuthenticateMiddleware)
     ]

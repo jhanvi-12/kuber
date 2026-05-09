@@ -24,10 +24,7 @@ class DriverFirebaseNotification(BaseResponseService):
         try:
             # Firebase-safe check
             if not firebase_admin._apps:
-                if user_type == "driver":
-                    cred = credentials.Certificate(env_config.DRIVER_FIREBASE_JSON)
-                else:
-                    cred = credentials.Certificate(env_config.USER_FIREBASE_JSON)
+                cred = credentials.Certificate("kubercab-3b5b5-bbd843c5a200.json")
                 firebase_admin.initialize_app(cred)
                 logger.info("Firebase initialized successfully.")
             return True
@@ -74,8 +71,8 @@ class DriverFirebaseNotification(BaseResponseService):
             message = self._build_message(device_token, title, body, data)
             messaging.send(message)
             print("Notification sent successfully")
-            logger.info(f"Notification sent to driver.")
+            logger.info(f"Notification sent to user or driver.")
         except Exception as e:
-            logger.error(f"Failed to send notification to driver : {str(e)}")
+            logger.error(f"Failed to send notification to user or driver : {str(e)}")
 
         return self.response(status.HTTP_200_OK, InfoMessage.notificationSentToDrivers)

@@ -1,5 +1,6 @@
 """ "This module is responsible for the driver vehicle details schema."""
 
+from datetime import datetime
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from core.utils.message_variable import ErrorMessage, InfoMessage
 from config import aws_config
 from apps.v1.api.ride.serializer import DriverListResponseSchema
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
-from core.utils import constant_variable as constant 
+from core.utils import constant_variable as constant
 
 
 class GetDriverService(BaseResponseService):
@@ -47,6 +48,23 @@ class GetDriverService(BaseResponseService):
                 )
 
             data = jsonable_encoder(vehicle_data)
+            data["vehicle_image"] = (
+                f"{aws_config.AWS_BASE_URL}{vehicle_data.vehicle_image}"
+                if vehicle_data.vehicle_image is not None
+                else None
+            )
+            data["vehicle_insurance_image"] = (
+                f"{aws_config.AWS_BASE_URL}{vehicle_data.vehicle_insurance_image}"
+                if vehicle_data.vehicle_insurance_image is not None
+                else None
+            )
+            data["license_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.license_image}"
+                if driver_obj.license_image is not None
+                else None
+            )
+            data["license_number"] = driver_obj.license_number
+            data["license_expiry_date"] = driver_obj.license_expiry_date.strftime("%Y-%m-%dT%H:%M:%S") if driver_obj.license_expiry_date else None
 
             return self.response(
                 status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, data
@@ -123,6 +141,9 @@ class GetDriverService(BaseResponseService):
                 else int(DriverStatusEnum.REJECTED.value)
             )
             driver_obj.is_docs_verified = is_docs_verified
+            if body.get("reason"):
+                driver_obj.reason = body.get("reason")
+
             db.add(driver_obj)
             await db.commit()
 
