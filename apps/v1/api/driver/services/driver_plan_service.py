@@ -18,6 +18,7 @@ from core.utils.message_variable import *
 
 # Plan details: name -> {price, validity_days}
 PLAN_DETAILS = {
+    "Free": {"price": 0, "validity": 233},
     "Basic": {"price": 99, "validity": 30},
     "Premium": {"price": 199, "validity": 60},
     "Domestic": {"price": 299, "validity": 90},

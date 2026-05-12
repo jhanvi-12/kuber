@@ -20,6 +20,7 @@ class DriverVehicleCombinedSchema(BaseModel):
     license_number: Optional[str] = None
     license_expiration_date: Optional[date] = None
     vehicle_insurance_expiration_date: Optional[date] = None
+    is_docs_verified: Optional[int] = None
 
     @classmethod
     def as_form(
@@ -31,6 +32,7 @@ class DriverVehicleCombinedSchema(BaseModel):
         license_number: Optional[str] = Form(None),
         license_expiration_date: Optional[date] = Form(None),
         vehicle_insurance_expiration_date: Optional[date] = Form(None),
+        is_docs_verified: Optional[int] = Form(None),
     ):
         return cls(
             vehicle_type=vehicle_type,
@@ -40,6 +42,7 @@ class DriverVehicleCombinedSchema(BaseModel):
             license_number=license_number,
             license_expiration_date=license_expiration_date,
             vehicle_insurance_expiration_date=vehicle_insurance_expiration_date,
+            is_docs_verified=is_docs_verified,
         )
 
     def validate_for_create(self):
@@ -52,6 +55,7 @@ class DriverVehicleCombinedSchema(BaseModel):
             "license_number",
             "license_expiration_date",
             "vehicle_insurance_expiration_date",
+            "is_docs_verified",
         ]
         missing = [f for f in required_fields if not getattr(self, f)]
         if missing:

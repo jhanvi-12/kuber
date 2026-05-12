@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime
 
+from apps.v1.api.ride.models.attribute import RideStatusEnum
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from core.utils.db_method import DataBaseMethod
 from core.utils.email_service import EmailService
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from apps.v1.api.auth.serializer import UserProfileSchema
+from apps.v1.api.ride.models.model import Ride
 
 
 class UserProfileService(BaseResponseService):
@@ -44,6 +46,24 @@ class UserProfileService(BaseResponseService):
                 else None
             )
 
+            if user_obj.user_type == UserTypeEnum.DRIVER.value:
+                res["ratings"] = user_obj.review
+                total_trips = await DataBaseMethod(Ride).count(
+                    db,
+                    {
+                        "driver_id": user_obj.id,
+                        "status": RideStatusEnum.COMPLETED.value,
+                    },
+                )
+                res["total_trips"] = total_trips
+                res["total_earnings"] = await DataBaseMethod(Ride).sum(
+                    db,
+                    "ride_fare",
+                    {
+                        "driver_id": user_obj.id,
+                        "status": RideStatusEnum.COMPLETED.value,
+                    },
+                )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, res
             )

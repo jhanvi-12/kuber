@@ -102,4 +102,3 @@ class Driver(Base, TimestampMixin):
     reason = Column(
         String(255), nullable=constant.STATUS_TRUE, doc="Reason for rejecting the driver"
     )
-
