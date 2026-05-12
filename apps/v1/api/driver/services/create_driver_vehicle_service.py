@@ -103,6 +103,7 @@ class DriverService(BaseResponseService):
             driver_obj.license_number = body_data["license_number"]
             driver_obj.license_expiry_date = body_data["license_expiration_date"]
             driver_obj.license_image = license_image_url
+            driver_obj.is_docs_verified = body_data.get("is_docs_verified")
 
             vehicle_obj.vehicle_image = vehicle_image_url
             vehicle_obj.vehicle_insurance_image = insurance_image_url
@@ -146,6 +147,7 @@ class DriverService(BaseResponseService):
             response_data["vehicle_insurance_image"] = (
                 f"{aws_config.AWS_BASE_URL}{response_data['vehicle_insurance_image']}"
             )
+            response_data["is_docs_verified"] = driver_obj.is_docs_verified
 
             return self.response(
                 status.HTTP_201_CREATED,
@@ -199,15 +201,15 @@ class DriverService(BaseResponseService):
                 )
 
             # Update vehicle fields if provided
-            if "vehicle_number" in body_data:
+            if body_data.get("vehicle_number") is not None:
                 existing_vehicle.plate_number = body_data["vehicle_number"]
-            if "vehicle_model" in body_data:
+            if body_data.get("vehicle_model") is not None:
                 existing_vehicle.vehicle_model = body_data["vehicle_model"]
-            if "make" in body_data:
+            if body_data.get("make") is not None:
                 existing_vehicle.make = body_data["make"]
-            if "vehicle_type" in body_data:
+            if body_data.get("vehicle_type") is not None:
                 existing_vehicle.ride_type = body_data["vehicle_type"]
-            if "vehicle_insurance_expiration_date" in body_data:
+            if body_data.get("vehicle_insurance_expiration_date") is not None:
                 existing_vehicle.vehicle_insurance_expiration_date = body_data[
                     "vehicle_insurance_expiration_date"
                 ]
@@ -254,9 +256,11 @@ class DriverService(BaseResponseService):
                     )
 
             # Update driver fields if provided
-            if "license_number" in body_data:
+            if body_data.get("is_docs_verified") is not None:
+                driver_obj.is_docs_verified = body_data["is_docs_verified"]
+            if body_data.get("license_number") is not None:
                 driver_obj.license_number = body_data["license_number"]
-            if "license_expiration_date" in body_data:
+            if body_data.get("license_expiration_date") is not None:
                 driver_obj.license_expiry_date = body_data["license_expiration_date"]
             if license_image_url:
                 driver_obj.license_image = license_image_url
@@ -306,6 +310,7 @@ class DriverService(BaseResponseService):
             response_data["vehicle_insurance_image"] = (
                 f"{aws_config.AWS_BASE_URL}{response_data['vehicle_insurance_image']}"
             )
+            response_data["is_docs_verified"] = driver_obj.is_docs_verified
 
             return self.response(
                 status.HTTP_200_OK,

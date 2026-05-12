@@ -9,6 +9,7 @@ class UserTypeEnum(str, Enum):
 
 class PlanNameEnum(str, Enum):
     """This enum represents the plan name."""
+    FREE = "Free"
     BASIC = "Basic"
     PREMIUM = "Premium"
     DOMESTIC = "Domestic"
