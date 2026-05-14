@@ -153,7 +153,7 @@ class SignUpService(BaseResponseService):
                 mobile=data["contact"],
                 profile_image=data["profile_image"],
                 # By default status is pending
-                is_docs_verified=DriverStatusEnum.PENDING.value
+                is_docs_verified=DriverStatusEnum.INITIAL.value
             )
 
             return user_obj
