@@ -19,6 +19,7 @@ from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
+from core.utils.db_method import DataBaseMethod
 
 
 class RideDetailService(BaseResponseService):
@@ -175,8 +176,11 @@ class RideDetailService(BaseResponseService):
                 )
 
             data = {
-                "rides": ride_obj   # wrap list inside dict
+                "rides": ride_obj,   # wrap list inside dict
+                "profile_image": (f"{aws_config.AWS_BASE_URL}{user_obj.profile_image}"
+                if user_obj.profile_image  is not None else constant.STATUS_NULL)
             }
+            print("data", data)
             rides_data = CustomerRidesResSchema().dump(data)
             for ride in rides_data["rides"]:
                 vehicle_obj = await DriverMethod(Vehicle).find_vehicle_by_driver_id(db, ride["driver_id"])
@@ -216,11 +220,26 @@ class RideDetailService(BaseResponseService):
                 )
 
             serialized_data = DriverRidesResponseSchema().dump(ride_obj)
+            serialized_data["total_earnings"] = await DataBaseMethod(Ride).sum(
+                    db,
+                    "ride_fare",
+                    {
+                        "driver_id": driver_id,
+                        "status": RideStatusEnum.COMPLETED.value,
+                    },
+                )
             serialized_data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
                 if driver_obj.profile_image
                 else constant.STATUS_NULL
             )
+            for ride in serialized_data["rides"]:
+                user_obj = await UserAuthMethod(User).find_by_id(db, ride["user_id"])
+                ride["profile_image"] = (
+                    f"{aws_config.AWS_BASE_URL}{user_obj.profile_image}"
+                    if user_obj.profile_image is not None
+                    else constant.STATUS_NULL
+                )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.ridesFetched, serialized_data
             )

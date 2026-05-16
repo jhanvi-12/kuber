@@ -32,19 +32,20 @@ class RideSchema(Schema):
     pickup_address = fields.Str(required=True)
     destination_address = fields.Str(required=True)
     driver_id = fields.Int(required=True)
-
+    user_id = fields.Int(required=True)
+    ride_date = fields.DateTime(required=True)
 
 class DriverRidesResponseSchema(Schema):
     """Schema for the driver rides"""
 
     rides = fields.List(fields.Nested(RideSchema), required=True)
     total_trips = fields.Int(required=True)
-
+    total_earning = fields.Float(required=True)
 
 class CustomerRidesResSchema(Schema):
     """Schema for the customer rides"""
-
     rides = fields.List(fields.Nested(RideSchema), required=True)
+    profile_image = fields.Str(required=False, allow_none=True)
 
 
 class DriverListSchema(Schema):
