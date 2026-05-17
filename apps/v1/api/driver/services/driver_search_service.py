@@ -78,13 +78,19 @@ class DriverSearchService:
         if not meta:
             LOG.warning(f"Driver {driver_id} has no metadata in Redis")
             return None
-        
+
         if not isinstance(meta, dict):
             LOG.warning(f"Driver {driver_id} metadata is not a dictionary: {type(meta)}")
             return None
-        
+
+        # ← Check is_available flag
+        is_available = meta.get("is_available", "0")
+        if str(is_available) != "1":
+            LOG.info(f"Driver {driver_id} is not available, skipping")
+            return None
+
         device_token = meta.get("device_token")
-        
+
         if not device_token:
             LOG.warning(f"Driver {driver_id} has no device_token")
             return None
@@ -92,7 +98,7 @@ class DriverSearchService:
         if not isinstance(device_token, str) or len(device_token) < 10:
             LOG.warning(f"Driver {driver_id} has invalid device_token format")
             return None
-        
+
         return device_token
 
     @staticmethod
@@ -168,16 +174,24 @@ class DriverSearchService:
             
             # Filter out None, empty strings, or invalid entries
             valid_drivers = [
-                str(d) for d in drivers 
+                str(d) for d in drivers
                 if d is not None and str(d).strip()
             ]
 
+            alive_drivers = []
+            for driver_id in valid_drivers:
+                is_alive = await redis_client.exists(f"driver:alive:{driver_id}")
+                if is_alive:
+                    alive_drivers.append(driver_id)
+                else:
+                    LOG.info(f"Driver {driver_id} heartbeat expired, skipping")
+
             LOG.info(
-                f"Found {len(valid_drivers)} drivers in {radius}km radius "
-                f"for ride_type '{ride_type}'"
+                f"Found {len(alive_drivers)}/{len(valid_drivers)} alive drivers "
+                f"in {radius}km radius for ride_type '{ride_type}'"
             )
 
-            return valid_drivers
+            return alive_drivers
 
         except Exception as e:
             LOG.error(f"Error fetching drivers from Redis: {str(e)}", exc_info=True)
@@ -292,6 +306,9 @@ class DriverSearchService:
                         LOG.debug(f"Driver {driver_id} already notified, skipping")
                         continue
 
+                    if not meta or str(meta.get("is_available", "0")) != "1":
+                        LOG.info(f"Driver {driver_id} is not available, skipping notification")
+                        continue  # ← skip entirely, don't count as failed
                     # Validate driver metadata and get device token
                     device_token = await DriverSearchService._validate_driver_meta(
                         driver_id, meta

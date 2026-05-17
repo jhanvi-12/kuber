@@ -235,6 +235,7 @@ class RideDetailService(BaseResponseService):
             )
             for ride in serialized_data["rides"]:
                 user_obj = await UserAuthMethod(User).find_by_id(db, ride["user_id"])
+                ride["username"] = user_obj.full_name
                 ride["profile_image"] = (
                     f"{aws_config.AWS_BASE_URL}{user_obj.profile_image}"
                     if user_obj.profile_image is not None

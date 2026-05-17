@@ -281,7 +281,8 @@ class RedisDriverRepo:
         lat: float,
         lon: float,
         ride_type: str,
-        device_token: str
+        device_token: str,
+        is_available: bool = True
     ):
         """This method is storing the geo location and ride_type, along with device_token."""
         # Store geo location
@@ -293,7 +294,7 @@ class RedisDriverRepo:
             mapping={
                 "ride_type": ride_type,
                 "device_token": device_token,
-                "is_available": constant_variable.STATUS_ONE
+                "is_available": "1" if is_available else "0"
             }
         )
 
