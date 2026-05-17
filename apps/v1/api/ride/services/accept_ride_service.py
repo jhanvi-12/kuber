@@ -128,7 +128,6 @@ class RideAcceptService(BaseResponseService):
                     None
                 )
                 print(f" Notification sent successfully to user {user_data.id}")
-                return True
 
             except Exception as e:
                 print(

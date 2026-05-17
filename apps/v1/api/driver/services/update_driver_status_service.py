@@ -62,6 +62,11 @@ class UpdateDriverStatusService(BaseResponseService):
                 driver_obj.longitude,
                 vehicle_obj.ride_type,
                 driver_obj.device_token,
+                (
+                    constant.STATUS_TRUE
+                    if driver_obj.is_available == constant.STATUS_ONE
+                    else constant.STATUS_FALSE
+                ),
             )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.driverStatusUpdated, data
