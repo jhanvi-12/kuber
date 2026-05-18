@@ -181,10 +181,12 @@ async def driver_location_update(sid, data):
             return
 
         # Update GEO location (RAW COMMAND – SAFE)
-        await RedisDriverRepo.set_available(
+        await RedisDriverRepo.update_driver_status(
             driver_id,
+            ride_type,
+            True,  # is_available is always True when sending location updates
             lat,
-            lng, ride_type, device_token
+            lng, device_token
         )
 
         await sio.emit(

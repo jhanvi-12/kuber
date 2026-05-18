@@ -1,12 +1,10 @@
 """This module is finding driver using waves to fetch the response in given time"""
-
 import asyncio
 import json
 import logging
 from typing import Optional, Dict, Any, List
 
-from apps.v1.api.driver.services.driver_firebase_notification import \
-    DriverFirebaseNotification
+from apps.v1.api.driver.services.driver_firebase_notification import DriverFirebaseNotification
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from config.redis_config import redis_client
@@ -15,91 +13,108 @@ from core.utils import constant_variable
 
 LOG = logging.getLogger(__name__)
 
+RIDE_SEARCH_TTL = 300  # 5 minutes total max lifetime of a ride search
+
+
 class DriverSearchService:
     """Class for searching the driver in waves"""
-
     MAX_WAVES = 3
-    WAVE_DELAY = 30  # seconds
-    MIN_DRIVERS_PER_WAVE = 1  # Minimum drivers to consider wave successful
-
-    WAVE_RADIUS = {
-        1: 1,   # 0–1 km
-        2: 3,   # 1–3 km
-        3: 5,   # 3–5 km
-    }
+    WAVE_DELAY = 30
+    WAVE_RADIUS = {1: 1, 2: 3, 3: 5}
 
     @staticmethod
     def _serialize_user_data(user_data: Dict[str, Any]) -> Dict[str, str]:
-        """
-        Convert all user_data values to strings for FCM compatibility.
-        
-        Args:
-            user_data: Dictionary containing user information
-            
-        Returns:
-            Dictionary with all values converted to strings
-        """
-        if not user_data:
-            return {}
-            
         serialized = {}
-        for key, value in user_data.items():
+        for key, value in (user_data or {}).items():
             try:
                 if isinstance(value, (dict, list)):
-                    # Convert complex objects to JSON strings
                     serialized[key] = json.dumps(value)
                 elif value is None:
                     serialized[key] = ""
                 else:
-                    # Convert all other types to string
                     serialized[key] = str(value)
             except Exception as e:
-                LOG.error(f"Error serializing key {key}: {str(e)}")
+                LOG.error(f"Serialize error key={key}: {e}")
                 serialized[key] = ""
-        
-        LOG.debug(f"Serialized user data: {serialized}")
         return serialized
 
     @staticmethod
-    async def _validate_driver_meta(
-        driver_id: str,
-        meta: Optional[Dict[str, Any]]
-    ) -> Optional[str]:
+    async def _fetch_eligible_drivers(
+        ride_type: str,
+        lng: float,
+        lat: float,
+        radius: float
+    ) -> List[Dict[str, str]]:
         """
-        Validate driver metadata and extract device token.
-        
-        Args:
-            driver_id: Driver's unique identifier
-            meta: Driver metadata from Redis
-            
-        Returns:
-            Device token if valid, None otherwise
+        Returns list of eligible drivers with their device tokens.
+        A driver is eligible only if:
+          1. Present in geo index within radius
+          2. driver:alive key exists (heartbeat active = logged in)
+          3. is_available == "1" in their meta
         """
-        if not meta:
-            LOG.warning(f"Driver {driver_id} has no metadata in Redis")
-            return None
+        try:
+            raw_drivers = await redis_client.georadius(
+                f"drivers:geo:{ride_type}", lng, lat, radius, unit="km"
+            )
 
-        if not isinstance(meta, dict):
-            LOG.warning(f"Driver {driver_id} metadata is not a dictionary: {type(meta)}")
-            return None
+            if not raw_drivers or not isinstance(raw_drivers, list):
+                return []
 
-        # ← Check is_available flag
-        is_available = meta.get("is_available", "0")
-        if str(is_available) != "1":
-            LOG.info(f"Driver {driver_id} is not available, skipping")
-            return None
+            driver_ids = [str(d) for d in raw_drivers if d and str(d).strip()]
+            if not driver_ids:
+                return []
 
-        device_token = meta.get("device_token")
+            LOG.info(f"Geo found {len(driver_ids)} drivers in {radius}km for {ride_type}")
 
-        if not device_token:
-            LOG.warning(f"Driver {driver_id} has no device_token")
-            return None
-        
-        if not isinstance(device_token, str) or len(device_token) < 10:
-            LOG.warning(f"Driver {driver_id} has invalid device_token format")
-            return None
+            # --- Gate 1: Heartbeat check (logged in) ---
+            pipe = redis_client.pipeline()
+            for driver_id in driver_ids:
+                await pipe.exists(f"driver:alive:{driver_id}")
+            alive_results = await pipe.execute()
 
-        return device_token
+            alive_ids = [
+                did for did, alive in zip(driver_ids, alive_results) if alive
+            ]
+            LOG.info(f"Alive: {len(alive_ids)}/{len(driver_ids)}")
+
+            if not alive_ids:
+                return []
+
+            # --- Gate 2: Availability + device token (single hgetall per driver) ---
+            pipe = redis_client.pipeline()
+            for driver_id in alive_ids:
+                await pipe.hmget(
+                    f"driver:meta:{driver_id}",
+                    "is_available", "device_token"
+                )
+            meta_results = await pipe.execute()
+
+            eligible = []
+            for driver_id, meta in zip(alive_ids, meta_results):
+                is_available, device_token = meta[0], meta[1]
+
+                if str(is_available or "0") != "1":
+                    LOG.info(f"Driver {driver_id} not available, skip")
+                    continue
+
+                if not device_token or len(str(device_token)) < 10:
+                    LOG.warning(f"Driver {driver_id} has no valid device token, skip")
+                    continue
+
+                eligible.append({
+                    "driver_id": driver_id,
+                    "device_token": str(device_token)
+                })
+
+            LOG.info(
+                f"Eligible: {len(eligible)}/{len(alive_ids)} | "
+                f"radius={radius}km | ride_type={ride_type}"
+            )
+            return eligible
+
+        except Exception as e:
+            LOG.error(f"_fetch_eligible_drivers error: {e}", exc_info=True)
+            return []
 
     @staticmethod
     async def _send_notification_safe(
@@ -109,93 +124,34 @@ class DriverSearchService:
         body: str,
         data: Dict[str, str]
     ) -> bool:
-        """
-        Safely send notification with error handling.
-        
-        Args:
-            driver_id: Driver's unique identifier
-            device_token: FCM device token
-            title: Notification title
-            body: Notification body
-            data: Notification data payload (must be string values)
-            
-        Returns:
-            True if notification sent successfully, False otherwise
-        """
         try:
             await DriverFirebaseNotification().send_notification_to_drivers(
-                device_token,
-                title,
-                body,
-                data
+                device_token, title, body, data
             )
-            LOG.info(f" Notification sent successfully to driver {driver_id}")
+            LOG.info(f"Notification sent → driver={driver_id}")
             return True
-
         except Exception as e:
-            LOG.error(
-                f" Failed to send notification to driver {driver_id}: {str(e)}",
-                exc_info=True
-            )
+            LOG.error(f"Notification failed → driver={driver_id}: {e}", exc_info=True)
             return False
 
     @staticmethod
-    async def _fetch_drivers_in_radius(
-        ride_type: str,
-        lng: float,
-        lat: float,
-        radius: float
-    ) -> List[str]:
-        """
-        Fetch drivers within specified radius.
-        
-        Args:
-            ride_type: Type of ride (e.g., 'standard', 'premium')
-            lng: Longitude
-            lat: Latitude
-            radius: Search radius in km
-            
-        Returns:
-            List of driver IDs
-        """
+    async def _cleanup_ride(ride_request_id: str):
+        """Set TTL on all ride search keys. Always awaited."""
         try:
-            drivers = await redis_client.georadius(
-                f"drivers:geo:{ride_type}",
-                lng,
-                lat,
-                radius,
-                unit="km"
-            )
-            
-            # Ensure drivers is a list
-            if not isinstance(drivers, list):
-                LOG.warning(f"georadius returned non-list: {type(drivers)}")
-                return []
-            
-            # Filter out None, empty strings, or invalid entries
-            valid_drivers = [
-                str(d) for d in drivers
-                if d is not None and str(d).strip()
+            keys = [
+                f"ride:search:{ride_request_id}",
+                f"ride:wave:{ride_request_id}",
+                f"ride:status:{ride_request_id}",
+                f"ride:notified:{ride_request_id}",
+                f"ride:candidates:{ride_request_id}",
             ]
-
-            alive_drivers = []
-            for driver_id in valid_drivers:
-                is_alive = await redis_client.exists(f"driver:alive:{driver_id}")
-                if is_alive:
-                    alive_drivers.append(driver_id)
-                else:
-                    LOG.info(f"Driver {driver_id} heartbeat expired, skipping")
-
-            LOG.info(
-                f"Found {len(alive_drivers)}/{len(valid_drivers)} alive drivers "
-                f"in {radius}km radius for ride_type '{ride_type}'"
-            )
-
-            return alive_drivers
-
+            pipe = redis_client.pipeline()
+            for key in keys:
+                await pipe.expire(key, 60)  # 60s grace period, not 2s
+            await pipe.execute()
+            LOG.info(f"Cleanup TTL set for ride={ride_request_id}")
         except Exception as e:
-            LOG.error(f"Error fetching drivers from Redis: {str(e)}", exc_info=True)
-            return []
+            LOG.error(f"Cleanup error ride={ride_request_id}: {e}")
 
     @staticmethod
     async def start_wave(
@@ -205,167 +161,122 @@ class DriverSearchService:
         lng: float,
         user_data: Dict[str, Any]
     ):
-        """
-        Find drivers in waves and send notifications to nearby drivers.
-        
-        Args:
-            ride_request_id: Unique ride request identifier
-            ride_type: Type of ride
-            lat: Pickup latitude
-            lng: Pickup longitude
-            user_data: User information to send to drivers
-        """
-        # Validate inputs
-        if not all([ride_request_id, ride_type, lat, lng]):
-            LOG.error("Missing required parameters for driver search")
+        """Find drivers in waves and send notifications to nearby drivers."""
+        if not all([ride_request_id, ride_type, lat is not None, lng is not None]):
+            LOG.error("start_wave: missing required parameters")
             return
 
-        # Serialize user data once BEFORE the loop
-        serialized_user_data = DriverSearchService._serialize_user_data(user_data)
+        # Serialize once before the loop
+        serialized_payload = DriverSearchService._serialize_user_data(user_data)
 
-        notification_stats = {
-            'total_drivers_found': 0,
-            'total_notifications_sent': 0,
-            'total_notifications_failed': 0
-        }
+        stats = {"found": 0, "sent": 0, "failed": 0, "skipped": 0}
 
         try:
             while True:
-                # Get current wave
-                wave = await RedisRideRepo.get_wave(ride_request_id)
-
-                # Check ride status FIRST
+                # Always check status first before any work
                 status = await RedisRideRepo.get_status(ride_request_id)
                 if status != "Searching":
                     LOG.info(
-                        f"Ride {ride_request_id} status changed to '{status}'. "
-                        f"Stopping search. Stats: {notification_stats}"
+                        f"Ride {ride_request_id} status={status}, "
+                        f"stopping search. stats={stats}"
                     )
                     return
 
-                LOG.info(f"Wave {wave}/{DriverSearchService.MAX_WAVES} for ride {ride_request_id}")
+                wave = await RedisRideRepo.get_wave(ride_request_id)
+                LOG.info(
+                    f"Starting wave {wave}/{DriverSearchService.MAX_WAVES} "
+                    f"for ride={ride_request_id}"
+                )
 
-                # Check if max waves reached BEFORE fetching drivers
+                # Max waves exceeded → mark failed
                 if wave > DriverSearchService.MAX_WAVES:
-                    LOG.warning(
-                        f"Max waves ({DriverSearchService.MAX_WAVES}) reached "
-                        f"for ride {ride_request_id}. Stats: {notification_stats}"
-                    )
-
-                    # Double-check status before failing
+                    LOG.warning(f"Max waves reached for ride={ride_request_id}. stats={stats}")
+                    # Re-check before marking failed (driver may have just accepted)
                     status = await RedisRideRepo.get_status(ride_request_id)
                     if status == "Searching":
                         await RedisRideRepo.update_status(
-                            ride_request_id,
-                            RideStatusEnum.FAILED.value
+                            ride_request_id, RideStatusEnum.FAILED.value
                         )
                         await RideSocketEmitter.book_ride_status(
-                            RideStatusEnum.FAILED.value,
-                            ride_request_id
+                            RideStatusEnum.FAILED.value, ride_request_id
                         )
-                    return  # EXIT - Don't continue the loop
+                    return
 
-                # Get radius for current wave
                 radius = DriverSearchService.WAVE_RADIUS.get(wave, 5)
 
-                # Fetch drivers in radius
-                drivers = await DriverSearchService._fetch_drivers_in_radius(
+                # Fetch only truly eligible drivers (alive + available + has token)
+                eligible_drivers = await DriverSearchService._fetch_eligible_drivers(
                     ride_type, lng, lat, radius
                 )
 
-                # If no drivers found, move to next wave WITHOUT sending notifications
-                if not drivers or len(drivers) == 0:
+                if not eligible_drivers:
                     LOG.info(
-                        f" No drivers found in {radius}km radius for wave {wave}. "
+                        f"Wave {wave}: no eligible drivers in {radius}km. "
                         f"Moving to next wave in {DriverSearchService.WAVE_DELAY}s"
                     )
                     await RedisRideRepo.increment_wave(ride_request_id)
                     await asyncio.sleep(DriverSearchService.WAVE_DELAY)
-                    continue  # SKIP to next iteration - NO NOTIFICATION SENT
+                    continue
 
-                # ONLY reach here if drivers were found
-                notification_stats['total_drivers_found'] += len(drivers)
-                LOG.info(f" Found {len(drivers)} drivers in wave {wave}: {drivers}")
+                stats["found"] += len(eligible_drivers)
+                wave_sent = 0
 
-                # Fetch driver metadata in batch
-                pipe = redis_client.pipeline()
-                for driver_id in drivers:
-                    await pipe.hgetall(f"driver:meta:{driver_id}")
+                for driver in eligible_drivers:
+                    driver_id = driver["driver_id"]
+                    device_token = driver["device_token"]
 
-                driver_meta_list = await pipe.execute()
-
-                # Process each driver - ONLY if we have drivers
-                notified_count = 0
-                for driver_id, meta in zip(drivers, driver_meta_list):
-                    # Check if driver already notified
+                    # Gate 3: not already notified for this ride request
                     is_new = await RedisRideRepo.mark_driver_notified(
                         ride_request_id, driver_id
                     )
-
                     if not is_new:
-                        LOG.debug(f"Driver {driver_id} already notified, skipping")
+                        LOG.debug(f"Driver {driver_id} already notified, skip")
+                        stats["skipped"] += 1
                         continue
 
-                    if not meta or str(meta.get("is_available", "0")) != "1":
-                        LOG.info(f"Driver {driver_id} is not available, skipping notification")
-                        continue  # ← skip entirely, don't count as failed
-                    # Validate driver metadata and get device token
-                    device_token = await DriverSearchService._validate_driver_meta(
-                        driver_id, meta
-                    )
-
-                    if not device_token:
-                        LOG.warning(f"Driver {driver_id} has no valid device token")
-                        notification_stats['total_notifications_failed'] += 1
-                        continue  # Skip this driver
-
-                    # ONLY SEND NOTIFICATION IF WE HAVE A VALID TOKEN
-                    LOG.info(f"Sending notification to driver {driver_id}")
-                    serialized_user_data["ride_request_id"] = ride_request_id  # Add ride_request_id to data
                     success = await DriverSearchService._send_notification_safe(
                         driver_id,
                         device_token,
                         constant_variable.RIDE_REQUEST_TITLE,
                         constant_variable.RIDE_REQUEST_BODY,
-                        serialized_user_data  # Already serialized
+                        serialized_payload
                     )
 
                     if success:
-                        notification_stats['total_notifications_sent'] += 1
-                        notified_count += 1
-                        # Mark as candidate
+                        stats["sent"] += 1
+                        wave_sent += 1
                         await RedisRideRepo.add_candidates(ride_request_id, [driver_id])
                     else:
-                        notification_stats['total_notifications_failed'] += 1
+                        stats["failed"] += 1
 
                 LOG.info(
-                    f"Wave {wave} complete: Notified {notified_count}/{len(drivers)} drivers. "
-                    f"Overall stats: {notification_stats}"
+                    f"Wave {wave} complete | sent={wave_sent}/{len(eligible_drivers)} | "
+                    f"stats={stats}"
                 )
 
-                # Move to next wave
                 await RedisRideRepo.increment_wave(ride_request_id)
                 await asyncio.sleep(DriverSearchService.WAVE_DELAY)
 
         except asyncio.CancelledError:
-            LOG.info(f"Driver search cancelled for ride {ride_request_id}")
-            raise
+            LOG.warning(f"start_wave cancelled for ride={ride_request_id}")
+
         except Exception as e:
             LOG.error(
-                f"Critical error in driver search for ride {ride_request_id}: {str(e)}",
+                f"Critical error in start_wave ride={ride_request_id}: {e}",
                 exc_info=True
             )
-            # Mark ride as failed
             try:
-                await RedisRideRepo.update_status(
-                    ride_request_id,
-                    RideStatusEnum.FAILED.value
-                )
-                await RideSocketEmitter.book_ride_status(
-                    RideStatusEnum.FAILED.value,
-                    ride_request_id
-                )
-                # Expire the Redis key to clean up state
-                redis_client.expire(f"ride:search:{ride_request_id}", 2)
-            except Exception as cleanup_error:
-                LOG.error(f"Error during cleanup: {str(cleanup_error)}")
+                status = await RedisRideRepo.get_status(ride_request_id)
+                if status == "Searching":
+                    await RedisRideRepo.update_status(
+                        ride_request_id, RideStatusEnum.FAILED.value
+                    )
+                    await RideSocketEmitter.book_ride_status(
+                        RideStatusEnum.FAILED.value, ride_request_id
+                    )
+            except Exception as inner:
+                LOG.error(f"Failure handler error: {inner}")
+
+        finally:
+            # Always clean up, whether success, failure, or exception
+            await DriverSearchService._cleanup_ride(ride_request_id)

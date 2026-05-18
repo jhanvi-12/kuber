@@ -31,48 +31,50 @@ class UpdateDriverStatusService(BaseResponseService):
             # Update the driver's status
             body = body.dict()
             driver_id = current_user["user_id"]
+            is_available = body.get("status") == constant.STATUS_ONE
+            lat = body.get("latitude")
+            lng = body.get("longitude")
+
+            # Coords are required only when going online
+            if is_available and (lat is None or lng is None):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST,
+                    ErrorMessage.latLngRequired
+                )
+
             driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
             if not driver_obj:
-                return self.response(
-                    status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound
-                )
-            # TODO : Checking that driver uploaded the required vehicle details or not, then able to make it online.
-            driver_obj.is_available = (
-                constant.STATUS_ONE
-                if body.get("status") == constant.STATUS_ONE
-                else constant.STATUS_ZERO
-            )
+                return self.response(status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound)
 
-            driver_obj.latitude = (
-                body.get("latitude") if body.get("latitude") is not None else None
-            )
-            driver_obj.longitude = (
-                body.get("longitude") if body.get("longitude") is not None else None
-            )
             vehicle_obj = await UserAuthMethod(Vehicle).find_by_driver_id(db, driver_id)
+            if not vehicle_obj:
+                return self.response(status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleNotFound)
 
-            data = {"is_available": driver_obj.is_available}
+            # Update DB
+            driver_obj.is_available = constant.STATUS_ONE if is_available else constant.STATUS_ZERO
+            driver_obj.latitude = lat
+            driver_obj.longitude = lng
             db.add(driver_obj)
             await db.commit()
 
-            # Updating the redis with driver latest lat, lng along with device_token.
-            await RedisDriverRepo.set_available(
-                driver_id,
-                driver_obj.latitude,
-                driver_obj.longitude,
-                vehicle_obj.ride_type,
-                driver_obj.device_token,
-                (
-                    constant.STATUS_TRUE
-                    if driver_obj.is_available == constant.STATUS_ONE
-                    else constant.STATUS_FALSE
-                ),
+            # Sync Redis
+            await RedisDriverRepo.update_driver_status(
+                driver_id=driver_id,
+                ride_type=vehicle_obj.ride_type,
+                is_available=is_available,
+                lat=lat,
+                lng=lng,
+                device_token=driver_obj.device_token,
             )
+
             return self.response(
-                status.HTTP_200_OK, InfoMessage.driverStatusUpdated, data
+                status.HTTP_200_OK,
+                InfoMessage.driverStatusUpdated,
+                {"is_available": driver_obj.is_available}
             )
 
         except Exception:
             return self.response(
-                status.HTTP_500_INTERNAL_SERVER_ERROR, ErrorMessage.generalTryAgain
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain
             )
