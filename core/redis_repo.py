@@ -4,8 +4,14 @@ import time
 
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from config.redis_config import redis_client
+import logging
 from core.utils import constant_variable
 
+DRIVER_ALIVE_TTL = 120       # 2 min — renewed by heartbeat
+DRIVER_META_TTL = 1800       # half an hour — auto cleanup if driver never logs out cleanly
+DRIVER_GEO_TTL = 1800        # half an hour — same
+
+LOG = logging.getLogger(__name__)
 
 class RedisRideRepo:
     """This class is used to represenst all ride methods to store data in redis."""
@@ -33,14 +39,14 @@ class RedisRideRepo:
         async with redis_client.pipeline() as pipe:
             # Store ride request
             await pipe.hmset(key, mapping=data)
-            
+
             # Safety TTL (auto cleanup after 10 minutes)
             await pipe.expire(key, 600)
-            
+
             # Cleanup related keys (if any)
             await pipe.delete(f"ride:lock:{ride_request_id}")
             await pipe.delete(f"ride:candidates:{ride_request_id}")
-            
+
             await pipe.execute()
 
     @classmethod
@@ -57,7 +63,7 @@ class RedisRideRepo:
             bool: True if lock acquired, False if already locked
         """
         lock_key = f"ride:lock:{ride_request_id}"
-        
+
         # SETNX: Set if not exists (atomic operation)
         is_locked = await redis_client.set(
             lock_key,
@@ -65,7 +71,7 @@ class RedisRideRepo:
             nx=True,  # Only set if not exists
             ex=600    # Expire in 10 minutes
         )
-        
+
         return is_locked is not None
 
     @classmethod
@@ -274,49 +280,109 @@ class RedisDriverRepo:
     def _geo_key(ride_type: str):
         return f"drivers:geo:{ride_type}"
 
+    @staticmethod
+    def _meta_key(driver_id: int) -> str:
+        return f"driver:meta:{driver_id}"
+
+    @staticmethod
+    def _alive_key(driver_id: int) -> str:
+        return f"driver:alive:{driver_id}"
+
     @classmethod
-    async def set_available(
+    async def update_driver_status(
         cls,
         driver_id: int,
-        lat: float,
-        lon: float,
         ride_type: str,
-        device_token: str,
-        is_available: bool = True
+        is_available: bool,
+        lat: float = None,
+        lng: float = None,
+        device_token: str = None,
     ):
-        """This method is storing the geo location and ride_type, along with device_token."""
-        # Store geo location
-        await redis_client.geoadd(cls._geo_key(ride_type),(lon, lat, str(driver_id)))
-
-        # Store metadata
-        await redis_client.hmset(
-            f"driver:meta:{driver_id}",
-            mapping={
-                "ride_type": ride_type,
-                "device_token": device_token,
-                "is_available": "1" if is_available else "0"
-            }
-        )
-
-        # Heartbeat
-        await redis_client.setex(
-            f"driver:alive:{driver_id}",
-            1000,
-            1
-        )
+        """
+        Online  → geo add + meta set + alive key with TTL
+        Offline → geo remove + mark unavailable + delete alive key
+        All via pipeline (single round trip).
+        """
+        try:
+            if is_available:
+                await cls._set_online(driver_id, ride_type, lat, lng, device_token)
+            else:
+                await cls._set_offline(driver_id, ride_type)
+        except Exception as e:
+            LOG.error(
+                f"update_driver_status failed | driver={driver_id} "
+                f"is_available={is_available} | error={e}",
+                exc_info=True
+            )
+            raise  # Let the service layer handle the HTTP response
 
     @classmethod
-    async def set_unavailable(cls, driver_id: int, ride_type: str):
-        """This method is used to remove that unavailable drivers from redis"""
-        # Remove from geo search
-        await redis_client.zrem(
-            cls._geo_key(ride_type),
-            str(driver_id)
-        )
+    async def _set_online(
+        cls,
+        driver_id: int,
+        ride_type: str,
+        lat: float,
+        lng: float,
+        device_token: str,
+    ):
+        meta_key = cls._meta_key(driver_id)
+        alive_key = cls._alive_key(driver_id)
+        geo_key = cls._geo_key(ride_type)
 
-        # Update metadata
-        await redis_client.hset(
-            f"driver:meta:{driver_id}",
-            "is_available",
-            constant_variable.STATUS_ZERO
-        )
+        async with redis_client.pipeline(transaction=False) as pipe:
+            # 1. Add to geo index
+            pipe.geoadd(geo_key, (lng, lat, str(driver_id)))
+
+            # 2. Set all meta fields individually (avoids hmset/hset mapping issue)
+            pipe.hset(meta_key, "ride_type", str(ride_type))
+            pipe.hset(meta_key, "device_token", str(device_token))
+            pipe.hset(meta_key, "is_available", "1")
+
+            # 3. Set TTL on meta so it auto-cleans if driver never logs out
+            pipe.expire(meta_key, DRIVER_META_TTL)
+
+            # 4. Alive key with TTL (heartbeat must renew this)
+            pipe.setex(alive_key, DRIVER_ALIVE_TTL, "1")
+
+            await pipe.execute()
+
+        LOG.info(f"Driver {driver_id} online | ride_type={ride_type} | lat={lat} lng={lng}")
+
+    @classmethod
+    async def _set_offline(cls, driver_id: int, ride_type: str):
+        meta_key = cls._meta_key(driver_id)
+        alive_key = cls._alive_key(driver_id)
+        geo_key = cls._geo_key(ride_type)
+
+        async with redis_client.pipeline(transaction=False) as pipe:
+            # 1. Remove from geo index (critical — else ghost drivers remain)
+            pipe.zrem(geo_key, str(driver_id))
+
+            # 2. Mark unavailable in meta
+            pipe.hset(meta_key, "is_available", "0")
+
+            # 3. Set short TTL on meta (cleanup after 5 min of being offline)
+            pipe.expire(meta_key, 300)
+
+            # 4. Delete alive key immediately
+            pipe.delete(alive_key)
+
+            await pipe.execute()
+
+        LOG.info(f"Driver {driver_id} offline | ride_type={ride_type}")
+
+    @classmethod
+    async def refresh_heartbeat(cls, driver_id: int):
+        """
+        Driver app calls this every ~60s to stay alive.
+        If this stops, driver:alive key expires and they become invisible
+        to georadius searches automatically.
+        """
+        try:
+            await redis_client.setex(
+                cls._alive_key(driver_id), DRIVER_ALIVE_TTL, "1"
+            )
+            LOG.debug(f"Heartbeat refreshed for driver={driver_id}")
+        except Exception as e:
+            LOG.error(f"refresh_heartbeat failed | driver={driver_id} | error={e}")
+            raise

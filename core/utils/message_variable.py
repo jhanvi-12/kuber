@@ -117,4 +117,4 @@ class ErrorMessage:
     tryAgain = "Please try again later!"
     noDriverFound = "Oops! No pilot found"
     driverNotVerified = "Driver is not verified"
-
+    latLngRequired = "Latitude and Longitude are required when going online."
