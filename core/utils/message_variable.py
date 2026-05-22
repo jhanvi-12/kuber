@@ -58,6 +58,8 @@ class InfoMessage:
     ridesFetched = "Your latest rides have been retrieved successfully."
     driversFetched = "Drivers fetched successfully"
     driverVehicleUpdatedSuccess = "Driver vehicle details are updated successfully!"
+    couponApplied = "Coupon applied successfully!"
+    couponsFetched = "Available coupons fetched successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -118,3 +120,12 @@ class ErrorMessage:
     noDriverFound = "Oops! No pilot found"
     driverNotVerified = "Driver is not verified"
     latLngRequired = "Latitude and Longitude are required when going online."
+    dateRangeRequired = "Start date and end date are required."
+    invalidDateFormat = "Invalid date format. Please use YYYY-MM-DD."
+    invalidDateRange = "Invalid date range. Start date must be before end date."
+    couponAlreadyUsed = "This coupon code has already been used by you."
+    invalidCouponCode = "Invalid coupon code."
+    couponAlreadyUserOrInvalid = "This coupon code is either invalid or has already been used by you."
+    rideTypeRequired = "Ride type is required to approve a driver documents."
+    rejectionReasonRequired = "Reason is required to reject a driver documents."
+    invalidUserOrNotFound = "User not found or invalid user type."

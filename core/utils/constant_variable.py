@@ -114,3 +114,5 @@ RIDE_REQUEST_TITLE = "New Ride Nearby 🚗"
 MAX_DISTANCE = 0.1
 MIN_DISTANCE = 0.02
 RIDE_REQUEST_BODY = "A rider is waiting nearby. Tap to accept before it’s gone."
+COUPON_WELCOME50 = "WELCOME50"
+COUPON_COMMUTE25 = "COMMUTE25"

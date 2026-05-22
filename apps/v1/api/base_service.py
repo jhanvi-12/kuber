@@ -9,8 +9,8 @@ Usage:
 This module is intended to be inherited by other service classes to reuse common functionality.
 """
 
-import base64
-import io
+import string
+import secrets
 import random
 
 import magic
@@ -161,3 +161,9 @@ class BaseResponseService:
             return True
         except Exception:
             return False
+
+    def generate_ride_id(self) -> str:
+        """Generates a short 6-char alphanumeric ride ID. e.g. RD-A3X9KP"""
+        chars = string.ascii_uppercase + string.digits
+        short_id = "".join(secrets.choice(chars) for _ in range(6))
+        return f"RD-{short_id}"

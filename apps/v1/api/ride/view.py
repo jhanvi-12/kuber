@@ -14,11 +14,31 @@ from apps.v1.api.ride.services.get_ride_details_service import RideDetailService
 from config import db_config
 from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.driver.schema import MyRidesSchema
+from apps.v1.api.ride.services.coupon_service import CouponService
 
 getdb = db_config.get_db
 
 riderouter = APIRouter()
 
+@riderouter.get("/coupons/available")
+async def get_available_coupons(
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """This API is used to fetch the coupon status for the user.
+
+    Args:
+        db (AsyncSession):Defaults to Depends(getdb).
+        authorize (HTTPAuthorizationCredentials): Defaults to Depends(oauth2).
+
+    Returns:
+        dict: A response containing the available coupons for the user.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await CouponService().get_available_coupons(
+        db, current_user["user_id"]
+    )
+    return response
 
 @riderouter.post("/book_ride")
 async def book_ride_api(

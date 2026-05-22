@@ -32,6 +32,11 @@ class RedisRideRepo:
             "destination_address": payload["destination_address"],
             "ride_type": payload["ride_type"],
             "ride_fare": payload["ride_fare"],
+            "discount_fare": payload["discount_fare"],
+            "total_fare": payload["total_fare"],
+            "distance": payload["distance"],
+            "duration": payload["duration"],
+            "coupon_code": payload.get("coupon_code", None),
             "wave": 1,
             "created_at": int(time.time()),
         }

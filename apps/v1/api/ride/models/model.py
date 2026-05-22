@@ -22,6 +22,11 @@ class Ride(Base, TimestampMixin):
         autoincrement=constant.STATUS_TRUE,
         doc="Primary key",
     )
+    ride_uuid = Column(
+        String(36),
+        nullable=constant.STATUS_FALSE,
+        doc="Universally unique identifier for the ride"
+    )
     user_id = Column(
         Integer,
         ForeignKey("users.id"),
@@ -55,7 +60,52 @@ class Ride(Base, TimestampMixin):
     ride_fare = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Fare amount for the ride"
     )
-
+    discount_fare = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=0.0,
+        server_default="0.0",
+        doc="Discount amount applied to the ride",
+    )
+    total_fare = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=0.0,
+        server_default="0.0",
+        doc="Total fare after discount",
+    )
+    distance = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=0.0,
+        server_default="0.0",
+        doc="Distance between pickup and destination in km",
+    )
+    duration = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=0.0,
+        server_default="0.0",
+        doc="Estimated duration of the ride in minutes",
+    )
+    coupon_code = Column(
+        String(50),
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_NULL,
+        doc="Coupon code applied to the ride (e.g. WELCOME50, COMMUTE25)",
+    )
+    is_welcome = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_FALSE,
+        doc="Whether the ride is a welcome ride (1 for yes, 0 for no)",
+    )
+    is_commuter = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_FALSE,
+        doc="Whether the ride is a commuter ride (1 for yes, 0 for no)",
+    )
     pickup_latitude = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Latitude of ride location"
     )

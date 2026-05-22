@@ -37,6 +37,11 @@ class BookRideSchema(BaseModel):
     destination_longitude: float = Field(..., description="destinatio longitude of customer")
     destination_address: str = Field(..., description="destinatio Address of customer")
     ride_type: str = Field(..., description="Type of ride")
+    coupon_code: Optional[str] = Field(None, description="Coupon code applied to the ride")
+    discount_fare: float = Field(0.0, description="Discount amount for the ride")
+    total_fare : float = Field(0.0, description="Total fare after discount for the ride")
+    distance: float = Field(0.0, description="Distance between pickup and destination")
+    duration: float = Field(0.0, description="Estimated duration of the ride in minutes")
 
     class Config:
         """
@@ -51,7 +56,12 @@ class BookRideSchema(BaseModel):
                 "destination_latitude": 19.2183,
                 "destination_longitude": 72.9781,
                 "destination_address": "Thane, Maharashtra, India",
-                "ride_type": "car"
+                "ride_type": "car",
+                "coupon_code": "WELCOME50",
+                "discount_fare": 50.0,
+                "total_fare": 100.50,
+                "distance": 30.5,
+                "duration": 45.0
             }
         }
 

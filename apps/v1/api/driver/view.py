@@ -28,7 +28,9 @@ async def driver_vehicle_complete_profile(
     ),
 
     # -------- Images --------
-    license_image: UploadFile = File(...),
+    rc_image: UploadFile = File(...),
+    license_front_image: UploadFile = File(...),
+    license_back_image: UploadFile = File(...),
     vehicle_image: UploadFile = File(...),
     vehicle_insurance_image: UploadFile = File(...),
 
@@ -48,7 +50,9 @@ async def driver_vehicle_complete_profile(
         db=db,
         body=body,
         files={
-            "license_image": license_image,
+            "license_front_image": license_front_image,
+            "license_back_image": license_back_image,
+            "rc_image": rc_image,
             "vehicle_image": vehicle_image,
             "vehicle_insurance_image": vehicle_insurance_image,
         },
@@ -64,7 +68,9 @@ async def driver_vehicle_update_profile(
     ),
 
     # -------- Images (Optional for update) --------
-    license_image: UploadFile = File(None),
+    rc_image: UploadFile = File(None),
+    license_front_image: UploadFile = File(None),
+    license_back_image: UploadFile = File(None),
     vehicle_image: UploadFile = File(None),
     vehicle_insurance_image: UploadFile = File(None),
 
@@ -84,7 +90,9 @@ async def driver_vehicle_update_profile(
         db=db,
         body=body,
         files={
-            "license_image": license_image,
+            "license_front_image": license_front_image,
+            "license_back_image": license_back_image,
+            "rc_image": rc_image,
             "vehicle_image": vehicle_image,
             "vehicle_insurance_image": vehicle_insurance_image,
         },
