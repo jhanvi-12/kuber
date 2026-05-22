@@ -67,18 +67,27 @@ class DriverService(BaseResponseService):
                 plate_number=body_data["vehicle_number"],
                 vehicle_model=body_data["vehicle_model"],
                 make=body_data["make"],
-                ride_type=body_data["vehicle_type"], # TODO:
+                vehicle_type=body_data["vehicle_type"],
                 vehicle_insurance_expiration_date=body_data[
                     "vehicle_insurance_expiration_date"
                 ],
             )
             # Upload images to S3
-            license_image_url = self.get_upload_file_to_s3(
+            license_front_image_url = self.get_upload_file_to_s3(
                 request,
-                files["license_image"],
+                files["license_front_image"],
                 f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
             )
-
+            license_back_image_url = self.get_upload_file_to_s3(
+                request,
+                files["license_back_image"],
+                f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
+            )
+            rc_image_url = self.get_upload_file_to_s3(
+                request,
+                files["rc_image"],
+                f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
+            )
             vehicle_image_url = self.get_upload_file_to_s3(
                 request,
                 files["vehicle_image"],
@@ -92,7 +101,7 @@ class DriverService(BaseResponseService):
             )
 
             if not all(
-                [license_image_url, vehicle_image_url, insurance_image_url]
+                [license_front_image_url, license_back_image_url, rc_image_url, vehicle_image_url, insurance_image_url]
             ):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST,
@@ -102,7 +111,9 @@ class DriverService(BaseResponseService):
             # Update driver & vehicle docs
             driver_obj.license_number = body_data["license_number"]
             driver_obj.license_expiry_date = body_data["license_expiration_date"]
-            driver_obj.license_image = license_image_url
+            driver_obj.license_front_image = license_front_image_url
+            driver_obj.license_back_image = license_back_image_url
+            driver_obj.rc_image = rc_image_url
             driver_obj.is_docs_verified = body_data.get("is_docs_verified")
 
             vehicle_obj.vehicle_image = vehicle_image_url
@@ -138,8 +149,14 @@ class DriverService(BaseResponseService):
 
             response_data = DriverVehicleDocumentSchema().dump(data)
 
-            response_data["license_image"] = (
-                f"{aws_config.AWS_BASE_URL}{response_data['license_image']}"
+            response_data["license_front_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['license_front_image']}"
+            )
+            response_data["license_back_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['license_back_image']}"
+            )
+            response_data["rc_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['rc_image']}"
             )
             response_data["vehicle_image"] = (
                 f"{aws_config.AWS_BASE_URL}{response_data['vehicle_image']}"
@@ -215,21 +232,35 @@ class DriverService(BaseResponseService):
                 ]
 
             # Upload images to S3 only if provided
-            license_image_url = None
+            license_front_image_url = None
+            license_back_image_url = None
+            rc_image_url = None
             vehicle_image_url = None
             insurance_image_url = None
 
-            if files.get("license_image"):
-                license_image_url = self.get_upload_file_to_s3(
+            if files.get("license_front_image") is not None:
+                license_front_image_url = self.get_upload_file_to_s3(
                     request,
-                    files["license_image"],
+                    files["license_front_image"],
                     f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
                 )
-                if not license_image_url:
-                    return self.response(
-                        status.HTTP_400_BAD_REQUEST,
-                        ErrorMessage.errorSavingUser,
-                    )
+            if files.get("license_back_image") is not None:
+                license_back_image_url = self.get_upload_file_to_s3(
+                    request,
+                    files["license_back_image"],
+                    f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
+                )
+            if files.get("rc_image") is not None:
+                rc_image_url = self.get_upload_file_to_s3(
+                    request,
+                    files["rc_image"],
+                    f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
+                )
+            if not license_front_image_url or not license_back_image_url or not rc_image_url:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST,
+                    ErrorMessage.errorSavingUser,
+                )
 
             if files.get("vehicle_image"):
                 vehicle_image_url = self.get_upload_file_to_s3(
@@ -262,8 +293,12 @@ class DriverService(BaseResponseService):
                 driver_obj.license_number = body_data["license_number"]
             if body_data.get("license_expiration_date") is not None:
                 driver_obj.license_expiry_date = body_data["license_expiration_date"]
-            if license_image_url:
-                driver_obj.license_image = license_image_url
+            if license_front_image_url:
+                driver_obj.license_front_image = license_front_image_url
+            if license_back_image_url:
+                driver_obj.license_back_image = license_back_image_url
+            if rc_image_url:
+                driver_obj.rc_image = rc_image_url
 
             # Update vehicle image fields if uploaded
             if vehicle_image_url:
@@ -301,8 +336,14 @@ class DriverService(BaseResponseService):
 
             response_data = DriverVehicleDocumentSchema().dump(data)
 
-            response_data["license_image"] = (
-                f"{aws_config.AWS_BASE_URL}{response_data['license_image']}"
+            response_data["license_front_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['license_front_image']}"
+            )
+            response_data["license_back_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['license_back_image']}"
+            )
+            response_data["rc_image"] = (
+                f"{aws_config.AWS_BASE_URL}{response_data['rc_image']}"
             )
             response_data["vehicle_image"] = (
                 f"{aws_config.AWS_BASE_URL}{response_data['vehicle_image']}"

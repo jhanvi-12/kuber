@@ -3,6 +3,7 @@
 import asyncio
 import math
 import uuid
+import json
 from typing import Dict, List
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 import numpy as np
@@ -21,6 +22,7 @@ from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from core.redis_repo import RedisRideRepo
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
+from apps.v1.api.ride.services.coupon_service import CouponService
 
 
 class BookRideService(BaseResponseService):
@@ -161,16 +163,30 @@ class BookRideService(BaseResponseService):
         """
         try:
             body = body.dict()
+            user_id = current_user.get("user_id")
             user_obj = await UserAuthMethod(User).find_by_id(
-                db, current_user.get("user_id")
+                db, user_id
             )
             if not user_obj:
                 return self.response(
                     status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound
                 )
-
             # Generate a Ride Request ID for the temp in redis.
             ride_request_id = str(uuid.uuid4())
+            coupon_code = body.get("coupon_code")
+            # Validate coupon if provided
+            if coupon_code:
+                result = await CouponService().validate_and_apply(
+                    db,
+                    user_id,
+                    coupon_code,
+                    body.get("ride_fare", 0.0)
+                )
+                if not json.loads(result.body)["status"] == "success":
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST,
+                        ErrorMessage.couponAlreadyUserOrInvalid,
+                    )
             payload = {
                     "pickup_latitude": body["pickup_latitude"],
                     "pickup_longitude": body["pickup_longitude"],
@@ -179,7 +195,12 @@ class BookRideService(BaseResponseService):
                     "destination_longitude": body["destination_longitude"],
                     "destination_address": body["destination_address"],
                     "ride_type": body["ride_type"],
-                    "ride_fare": body["ride_fare"]
+                    "ride_fare": body["ride_fare"],
+                    "discount_fare": body.get("discount_fare", 0.0),
+                    "total_fare": body.get("total_fare", body["ride_fare"]),
+                    "distance": body.get("distance", 0.0),
+                    "duration": body.get("duration", 0.0),
+                    "coupon_code": body.get("coupon_code", None)
                 }
             # Store ride request in the redis
             await RedisRideRepo.init_search_state(

@@ -60,7 +60,7 @@ class RideAcceptService(BaseResponseService):
                 f"ride:lock:{ride_request_id}",
                 driver_id,
                 nx=True,
-                ex=1200
+                ex=120
             )
 
             if not locked:
@@ -70,6 +70,7 @@ class RideAcceptService(BaseResponseService):
 
             # Create Ride in DB NOW
             ride = Ride(
+                ride_uuid=self.generate_ride_id(),
                 user_id=int(ride_req["user_id"]),
                 driver_id=driver_id,
                 pickup_latitude=float(ride_req["pickup_latitude"]),
@@ -80,10 +81,14 @@ class RideAcceptService(BaseResponseService):
                 destination_address=ride_req["destination_address"],
                 ride_type=ride_req["ride_type"],
                 ride_fare=float(ride_req["ride_fare"]),
+                discount_fare=float(ride_req.get("discount_fare", 0.0)),
+                total_fare=float(ride_req.get("total_fare")),
+                distance=float(ride_req.get("distance", 0.0)),
+                duration=float(ride_req.get("duration", 0.0)),
+                coupon_code=ride_req.get("coupon_code"),
                 status=RideStatusEnum.ACCEPTED.value,
                 ride_date=datetime.now(),
             )
-
             db.add(ride)
             await db.commit()
             await db.refresh(ride)

@@ -165,15 +165,13 @@ class UserAuthMethod:
             self, db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime
             ):
         """This methos is used to fetch the user rides data upto latest 5 days"""
-        if isinstance(start_date, str):
-            start_date = datetime.fromisoformat(start_date)
-        if isinstance(end_date, str):
-            end_date = datetime.fromisoformat(end_date)
         async with db:
             # Base filter
             date_filters = [
                 self.model.user_id == user_id,
                 self.model.deleted_at == constant.STATUS_NULL,
+                self.model.status.in_([RideStatusEnum.COMPLETED.value,
+                                        RideStatusEnum.CANCELLED.value]),
                 func.date(self.model.created_at) >= start_date.date(),
                 func.date(self.model.created_at) <= end_date.date(),
             ]

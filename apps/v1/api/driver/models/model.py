@@ -54,7 +54,13 @@ class Driver(Base, TimestampMixin):
     license_number = Column(
         String(100), nullable=constant.STATUS_TRUE, doc="Driver license number"
     )
-    license_image = Column(
+    rc_number = Column(
+        String(100), nullable=constant.STATUS_TRUE, doc="Vehicle RC number"
+    )
+    license_front_image = Column(
+        Text, nullable=constant.STATUS_TRUE, doc="Driver license image URL"
+    )
+    license_back_image = Column(
         Text, nullable=constant.STATUS_TRUE, doc="Driver license image URL"
     )
     license_expiry_date = Column(

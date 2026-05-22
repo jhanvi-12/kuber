@@ -116,44 +116,83 @@ class GetDriverService(BaseResponseService):
     async def driver_approve_reject_by_admin_service(
         self, db: AsyncSession, current_user: dict, body: dict
     ):
-        """This method is updating the status of driver by admin"""
+        """
+        Admin approves or rejects a driver.
+        - Approve: ride_type is mandatory, updates vehicle ride_type
+        - Reject: reason is mandatory
+        """
         try:
-            # Validate admin
+            # --- Validate admin ---
             admin_id = current_user.get("user_id")
             admin_obj = await UserAuthMethod(Admin).find_by_id(db, admin_id)
             if not admin_obj:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.adminNotFound
-                )
+                return self.response(status.HTTP_403_FORBIDDEN, ErrorMessage.adminNotFound)
 
-            driver_obj = await UserAuthMethod(Driver).find_by_id(
-                db, body.get("driver_id")
-            )
+            # --- Validate driver ---
+            driver_id = body.get("driver_id")
+            if not driver_id:
+                return self.response(status.HTTP_400_BAD_REQUEST, ErrorMessage.drivernotFound)
 
+            driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
             if not driver_obj:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
-                )
+                return self.response(status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound)
 
+            # --- Determine approval status ---
+            is_approved = body.get("status") == constant.STATUS_ONE
             is_docs_verified = (
                 int(DriverStatusEnum.APPROVED.value)
-                if body.get("status") == constant.STATUS_ONE
+                if is_approved
                 else int(DriverStatusEnum.REJECTED.value)
             )
-            driver_obj.is_docs_verified = is_docs_verified
-            if body.get("reason"):
-                driver_obj.reason = body.get("reason")
 
+            if is_approved:
+                # --- Approval: ride_type is mandatory ---
+                ride_type = body.get("ride_type")
+                if not ride_type:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST,
+                        ErrorMessage.rideTypeRequired  # "ride_type is required to approve a driver"
+                    )
+
+                # --- Update vehicle ride_type ---
+                veh_obj = await VehicleMethod(Vehicle).find_by_driver_id(db, driver_id)
+                if not veh_obj:
+                    return self.response(
+                        status.HTTP_404_NOT_FOUND,
+                        ErrorMessage.vehicleNotFound  # driver must have a vehicle to be approved
+                    )
+                veh_obj.ride_type = ride_type
+                db.add(veh_obj)
+
+                # Clear rejection reason if previously rejected
+                driver_obj.reason = None
+
+            else:
+                # --- Rejection: reason is mandatory ---
+                reason = body.get("reason")
+                if not reason or not str(reason).strip():
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST,
+                        ErrorMessage.rejectionReasonRequired  # "reason is required to reject a driver"
+                    )
+                driver_obj.reason = str(reason).strip()
+
+            # --- Update driver verification status ---
+            driver_obj.is_docs_verified = is_docs_verified
             db.add(driver_obj)
             await db.commit()
+            await db.refresh(driver_obj)
 
+            # --- Build safe response ---
             data = jsonable_encoder(driver_obj)
-            data.pop("password")
-            data.pop("device_token")
+            data.pop("password", None)
+            data.pop("device_token", None)
 
-            return self.response(status.HTTP_200_OK, InfoMessage.driversFetched, data)
+            return self.response(status.HTTP_200_OK, InfoMessage.driverStatusUpdated, data)
 
         except Exception:
+            await db.rollback()
             return self.response(
-                status.HTTP_400_BAD_REQUEST, ErrorMessage.generalTryAgain
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain
             )

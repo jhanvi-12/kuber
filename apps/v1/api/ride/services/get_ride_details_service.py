@@ -3,7 +3,7 @@
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from datetime import datetime
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.base_service import BaseResponseService
@@ -11,9 +11,11 @@ from apps.v1.api.driver.models.method import DriverMethod
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
-from apps.v1.api.ride.serializer import (CustomerRidesResSchema,
-                                         DriverRidesResponseSchema,
-                                         RideResponse)
+from apps.v1.api.ride.serializer import (
+    CustomerRidesResSchema,
+    DriverRidesResponseSchema,
+    RideResponse,
+)
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
@@ -118,7 +120,15 @@ class RideDetailService(BaseResponseService):
 
             message = InfoMessage.driverStatusUpdated
             update_status = status_mapping.get(ride_status)
-            if update_status:
+            if update_status["status"] == RideStatusEnum.COMPLETED.value:
+                if ride.coupon_code == constant.COUPON_WELCOME50:
+                    ride.is_welcome = constant.STATUS_TRUE
+
+                elif ride.coupon_code == constant.COUPON_COMMUTE25:
+                    ride.is_commuter = constant.STATUS_TRUE
+                else:
+                    ride.is_welcome = constant.STATUS_FALSE
+                    ride.is_commuter = constant.STATUS_FALSE
                 ride.status = update_status["status"]
                 message = update_status["message"]
             db.add(ride)
@@ -137,7 +147,7 @@ class RideDetailService(BaseResponseService):
             data = RideResponse().dump(response)
 
             await RideSocketEmitter.book_ride_status(
-                ride_status=ride.status,
+                ride_status=update_status["status"],
                 ride_request_id=None,
                 ride_id=ride.id,
                 driver_data=data,
@@ -153,51 +163,125 @@ class RideDetailService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
-    async def fetch_user_rides_service(self, db: AsyncSession, current_user: dict, body: dict):
-        """This method is used to fetch the customer rides upto 5 days.
+    async def fetch_user_rides_service(
+        self, db: AsyncSession, current_user: dict, body: dict
+    ):
+        """
+        Fetch completed and cancelled rides for a customer within date range.
 
         Args:
-            db (AsyncSession): Db Session
-            current_user (dict): user for which need to fetch the rides.
+            db: Database session
+            current_user: Authenticated user dict
+            body: Request body with start_date and end_date
         """
         try:
+            # --- Input validation ---
             user_id = current_user.get("user_id")
+            if not user_id:
+                return self.response(status.HTTP_401_UNAUTHORIZED, ErrorMessage.userNotFound)
+
             start_date = body.get("start_date")
             end_date = body.get("end_date")
-            user_obj = await UserAuthMethod(User).find_by_id(db, user_id)
-            if not user_obj:
+
+            if not start_date or not end_date:
                 return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
-                )
-            ride_obj = await UserAuthMethod(Ride).find_ride_by_user_id(db, user_id, start_date, end_date)
-            if not ride_obj:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.dateRangeRequired
                 )
 
-            data = {
-                "rides": ride_obj,   # wrap list inside dict
-                "profile_image": (f"{aws_config.AWS_BASE_URL}{user_obj.profile_image}"
-                if user_obj.profile_image  is not None else constant.STATUS_NULL)
-            }
-            print("data", data)
-            rides_data = CustomerRidesResSchema().dump(data)
-            for ride in rides_data["rides"]:
-                vehicle_obj = await DriverMethod(Vehicle).find_vehicle_by_driver_id(db, ride["driver_id"])
-                ride["vehicle_image"] = (
-                    f"{aws_config.AWS_BASE_URL}{vehicle_obj.vehicle_image}"
-                    if vehicle_obj.vehicle_image is not None
-                    else constant.STATUS_NULL
+            # Parse and validate dates
+            try:
+                if isinstance(start_date, str):
+                    start_date = datetime.fromisoformat(start_date)
+                if isinstance(end_date, str):
+                    end_date = datetime.fromisoformat(end_date)
+            except (ValueError, TypeError):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidDateFormat
                 )
+
+            if start_date > end_date:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidDateRange
+                )
+
+            # --- Fetch user ---
+            user_obj = await UserAuthMethod(User).find_by_id(db, user_id)
+            if not user_obj:
+                return self.response(status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound)
+
+            # --- Fetch rides ---
+            ride_objs = await UserAuthMethod(Ride).find_ride_by_user_id(
+                db, user_id, start_date, end_date
+            )
+
+            # Empty rides is valid — return empty list, not 400
+            if not ride_objs:
+                return self.response(
+                    status.HTTP_200_OK,
+                    InfoMessage.ridesFetched,
+                    {"rides": []}
+                )
+
+            # --- Serialize rides ---
+            rides_data = CustomerRidesResSchema().dump({"rides": ride_objs})
+
+            # --- Enrich each ride with vehicle and driver data ---
+            for ride in rides_data.get("rides", []):
+                driver_id = ride.get("driver_id")
+
+                # Attach vehicle data
+                try:
+                    vehicle_obj = await DriverMethod(Vehicle).find_vehicle_by_driver_id(
+                        db, driver_id
+                    ) if driver_id else None
+
+                    ride["vehicle_name"] = vehicle_obj.make if vehicle_obj else constant.STATUS_NULL
+                    ride["plate_number"] = vehicle_obj.plate_number if vehicle_obj else constant.STATUS_NULL
+                    ride["vehicle_image"] = (
+                        f"{aws_config.AWS_BASE_URL}{vehicle_obj.vehicle_image}"
+                        if vehicle_obj and vehicle_obj.vehicle_image
+                        else constant.STATUS_NULL
+                    )
+                except Exception:
+                    ride["vehicle_name"] = constant.STATUS_NULL
+                    ride["plate_number"] = constant.STATUS_NULL
+                    ride["vehicle_image"] = constant.STATUS_NULL
+
+                # Attach driver data
+                try:
+                    driver_obj = await UserAuthMethod(Driver).find_by_id(
+                        db, driver_id
+                    ) if driver_id else None
+
+                    ride["driver_data"] = {
+                        "full_name": driver_obj.full_name if driver_obj else constant.STATUS_NULL,
+                        "mobile": driver_obj.mobile if driver_obj else constant.STATUS_NULL,
+                        "profile_image": (
+                            f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
+                            if driver_obj and driver_obj.profile_image
+                            else constant.STATUS_NULL
+                        ),
+                        "ratings": driver_obj.review if driver_obj else constant.STATUS_NULL,
+                    }
+                except Exception:
+                    ride["driver_data"] = {
+                        "full_name": constant.STATUS_NULL,
+                        "mobile": constant.STATUS_NULL,
+                        "profile_image": constant.STATUS_NULL,
+                        "ratings": constant.STATUS_NULL,
+                    }
+
             return self.response(status.HTTP_200_OK, InfoMessage.ridesFetched, rides_data)
 
         except Exception:
-            return self.response(   
+            return self.response(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain,
             )
 
-    async def fetch_driver_rides_service(self, db: AsyncSession, current_user: dict, body: dict):
+    async def fetch_driver_rides_service(
+        self, db: AsyncSession, current_user: dict, body: dict
+    ):
         """This method is used to fetch the drivers rides upto 5 days.
 
         Args:
@@ -213,7 +297,9 @@ class RideDetailService(BaseResponseService):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.driverNotFound
                 )
-            ride_obj = await UserAuthMethod(Ride).find_ride_by_driver_id(db, driver_id, start_date, end_date)
+            ride_obj = await UserAuthMethod(Ride).find_ride_by_driver_id(
+                db, driver_id, start_date, end_date
+            )
             if not ride_obj:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
@@ -221,13 +307,13 @@ class RideDetailService(BaseResponseService):
 
             serialized_data = DriverRidesResponseSchema().dump(ride_obj)
             serialized_data["total_earnings"] = await DataBaseMethod(Ride).sum(
-                    db,
-                    "ride_fare",
-                    {
-                        "driver_id": driver_id,
-                        "status": RideStatusEnum.COMPLETED.value,
-                    },
-                )
+                db,
+                "ride_fare",
+                {
+                    "driver_id": driver_id,
+                    "status": RideStatusEnum.COMPLETED.value,
+                },
+            )
             serialized_data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
                 if driver_obj.profile_image

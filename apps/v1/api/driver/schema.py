@@ -82,6 +82,7 @@ class DriverStatusSchema(BaseModel):
     """class for updating the driver status"""
     driver_id : int
     status: int
+    ride_type: Optional[str] = None
     reason: Optional[str] = None
 
     class Config:
@@ -93,6 +94,7 @@ class DriverStatusSchema(BaseModel):
             "example": {
                 "driver_id": 1,
                 "status": 1,
+                "ride_type": "sedan",
                 "reason": "Background verification completed successfully"
             }
         }

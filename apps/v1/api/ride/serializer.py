@@ -27,6 +27,7 @@ class RideSchema(Schema):
     """Schema for the driver ride"""
 
     id = fields.Int(required=True)
+    ride_uuid = fields.Str(required=True)
     status = fields.Str(required=True)
     ride_fare = fields.Float(required=True)
     pickup_address = fields.Str(required=True)
@@ -34,6 +35,11 @@ class RideSchema(Schema):
     driver_id = fields.Int(required=True)
     user_id = fields.Int(required=True)
     ride_date = fields.DateTime(required=True)
+    distance = fields.Float(required=True)
+    duration = fields.Float(required=True)
+    ride_fare = fields.Float(required=True)
+    discount_fare = fields.Float(required=False, allow_none=True)
+    coupon_code = fields.Str(required=False, allow_none=True)
 
 class DriverRidesResponseSchema(Schema):
     """Schema for the driver rides"""
@@ -45,7 +51,6 @@ class DriverRidesResponseSchema(Schema):
 class CustomerRidesResSchema(Schema):
     """Schema for the customer rides"""
     rides = fields.List(fields.Nested(RideSchema), required=True)
-    profile_image = fields.Str(required=False, allow_none=True)
 
 
 class DriverListSchema(Schema):

@@ -9,6 +9,7 @@ from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
 from core.utils.message_variable import *
 from config.redis_config import redis_client
+from core.utils import constant_variable as constant
 
 
 class UserRideCancelService(BaseResponseService):
@@ -53,6 +54,20 @@ class UserRideCancelService(BaseResponseService):
                 )
 
             # Update ride status and store cancellation info
+            update_status = ride.status
+            if update_status == RideStatusEnum.CANCELLED.value:
+                if ride.coupon_code == constant.COUPON_WELCOME50:
+                    ride.is_welcome = constant.STATUS_TRUE
+                    ride.is_commuter = constant.STATUS_FALSE
+
+                elif ride.coupon_code == constant.COUPON_COMMUTE25:
+                    ride.is_commuter = constant.STATUS_TRUE
+                    ride.is_welcome = constant.STATUS_FALSE
+
+                else:
+                    ride.is_welcome = constant.STATUS_FALSE
+                    ride.is_commuter = constant.STATUS_FALSE
+    
             ride.status = RideStatusEnum.CANCELLED.value
             ride.cancellation_reason = reason
             ride.cancellation_description = description
