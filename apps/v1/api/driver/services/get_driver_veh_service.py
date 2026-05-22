@@ -58,9 +58,19 @@ class GetDriverService(BaseResponseService):
                 if vehicle_data.vehicle_insurance_image is not None
                 else None
             )
-            data["license_image"] = (
-                f"{aws_config.AWS_BASE_URL}{driver_obj.license_image}"
-                if driver_obj.license_image is not None
+            data["license_front_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.license_front_image}"
+                if driver_obj.license_front_image is not None
+                else None
+            )
+            data["license_back_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.license_back_image}"
+                if driver_obj.license_back_image is not None
+                else None
+            )
+            data["rc_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.rc_image}"
+                if driver_obj.rc_image is not None
                 else None
             )
             data["license_number"] = driver_obj.license_number

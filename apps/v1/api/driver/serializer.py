@@ -14,7 +14,9 @@ class DriverVehicleDocumentSchema(Schema):
     created_at = fields.DateTime(required=True)
     updated_at = fields.DateTime(required=True)
     # license_expiry_date = fields.DateTime()
-    license_image = fields.Str()
+    license_front_image = fields.Str()
+    license_back_image = fields.Str()
+    rc_image = fields.Str()
 
     # Vehicle Fields
     vehicle_id = fields.Int(attribute="vehicle.id")

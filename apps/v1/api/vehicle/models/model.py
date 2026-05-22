@@ -29,7 +29,7 @@ class Vehicle(Base, TimestampMixin):
         String(100), nullable=constant.STATUS_FALSE, doc="Vehicle plate number"
     )
     ride_type = Column(
-        String(100), nullable=constant.STATUS_FALSE, doc="Vehicle ride type"
+        String(100), nullable=constant.STATUS_TRUE, doc="Vehicle ride type"
     )
     vehicle_type = Column(
         String(150), nullable=constant.STATUS_TRUE, doc="Vehicle type"
