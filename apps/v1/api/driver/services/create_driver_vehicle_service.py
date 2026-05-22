@@ -232,35 +232,27 @@ class DriverService(BaseResponseService):
                 ]
 
             # Upload images to S3 only if provided
-            license_front_image_url = None
-            license_back_image_url = None
-            rc_image_url = None
-            vehicle_image_url = None
-            insurance_image_url = None
-
             if files.get("license_front_image") is not None:
                 license_front_image_url = self.get_upload_file_to_s3(
                     request,
                     files["license_front_image"],
                     f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
                 )
+                driver_obj.license_front_image = license_front_image_url
             if files.get("license_back_image") is not None:
                 license_back_image_url = self.get_upload_file_to_s3(
                     request,
                     files["license_back_image"],
                     f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
                 )
+                driver_obj.license_back_image = license_back_image_url
             if files.get("rc_image") is not None:
                 rc_image_url = self.get_upload_file_to_s3(
                     request,
                     files["rc_image"],
                     f"{aws_config.S3_PATH_DRIVER_LICENSE_IMAGE}{uuid.uuid4()}",
                 )
-            if not license_front_image_url or not license_back_image_url or not rc_image_url:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST,
-                    ErrorMessage.errorSavingUser,
-                )
+                driver_obj.rc_image = rc_image_url
 
             if files.get("vehicle_image"):
                 vehicle_image_url = self.get_upload_file_to_s3(
@@ -268,6 +260,7 @@ class DriverService(BaseResponseService):
                     files["vehicle_image"],
                     f"{aws_config.S3_PATH_DRIVER_VEHICLE_IMAGE}{uuid.uuid4()}",
                 )
+                driver_obj.vehicle_image = vehicle_image_url
                 if not vehicle_image_url:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST,
@@ -280,6 +273,7 @@ class DriverService(BaseResponseService):
                     files["vehicle_insurance_image"],
                     f"{aws_config.S3_PATH_DRIVER_VEHICLE_INSURANCE_IMAGE}{uuid.uuid4()}",
                 )
+                driver_obj.vehicle_insurance_image = insurance_image_url
                 if not insurance_image_url:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST,
@@ -293,18 +287,6 @@ class DriverService(BaseResponseService):
                 driver_obj.license_number = body_data["license_number"]
             if body_data.get("license_expiration_date") is not None:
                 driver_obj.license_expiry_date = body_data["license_expiration_date"]
-            if license_front_image_url:
-                driver_obj.license_front_image = license_front_image_url
-            if license_back_image_url:
-                driver_obj.license_back_image = license_back_image_url
-            if rc_image_url:
-                driver_obj.rc_image = rc_image_url
-
-            # Update vehicle image fields if uploaded
-            if vehicle_image_url:
-                existing_vehicle.vehicle_image = vehicle_image_url
-            if insurance_image_url:
-                existing_vehicle.vehicle_insurance_image = insurance_image_url
 
             # Save all (single transaction)
             if not await DataBaseMethod(Driver).save(driver_obj, db):
