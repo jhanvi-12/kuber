@@ -35,9 +35,12 @@ class RideSchema(Schema):
     driver_id = fields.Int(required=True)
     user_id = fields.Int(required=True)
     ride_date = fields.DateTime(required=True)
+    ride_type = fields.Str(required=True)
     distance = fields.Float(required=True)
     duration = fields.Float(required=True)
     ride_fare = fields.Float(required=True)
+    driver_review = fields.Str(required=False, allow_none=True)
+    driver_rating = fields.Float(required=False, allow_none=True)
     discount_fare = fields.Float(required=False, allow_none=True)
     coupon_code = fields.Str(required=False, allow_none=True)
 

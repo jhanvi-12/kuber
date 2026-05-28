@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-class RideStatusEnum(str, Enum):
+class RideStatusEnum(int, Enum):
     """
     Enum for ride status.
     """
@@ -13,3 +13,4 @@ class RideStatusEnum(str, Enum):
     STARTED = 3
     COMPLETED = 4
     CANCELLED = 5
+

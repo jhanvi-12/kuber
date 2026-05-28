@@ -2,7 +2,7 @@
 
 
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from core.utils import constant_variable as constant
 from fastapi import Form
 from datetime import date
@@ -114,5 +114,24 @@ class MyRidesSchema(BaseModel):
             "example": {
                 "start_date": "2026-04-01T00:00:00",
                 "end_date": "2026-04-05T23:59:59"
+            }
+        }
+
+class ReviewSchema(BaseModel):
+    """Schema for submitting a review."""
+    ride_id: int
+    rating: int = Field(..., ge=1, le=5, description="Rating must be between 1 and 5")
+    review: Optional[str] = None
+
+    class Config:
+        """Schema configuration."""
+
+        extra = "forbid"
+        from_attributes = constant.STATUS_TRUE
+        json_schema_extra = {
+            "example": {
+                "ride_id": 1,
+                "rating": 4,
+                "review": "Great service!"
             }
         }

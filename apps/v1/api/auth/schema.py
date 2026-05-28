@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, constr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from core.utils import constant_variable as constant
 from core.utils.validation import ValidationMethods
@@ -220,3 +220,4 @@ class ChangeNumberSchema(BaseModel):
         extra = "forbid"
         from_attributes = constant.STATUS_TRUE
         json_schema_extra = {"example": {"mobile": "9123456789"}}
+

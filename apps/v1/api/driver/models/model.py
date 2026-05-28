@@ -108,3 +108,10 @@ class Driver(Base, TimestampMixin):
     reason = Column(
         String(255), nullable=constant.STATUS_TRUE, doc="Reason for rejecting the driver"
     )
+    total_reviews = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        default=0,
+        server_default="0",
+        doc="Total number of reviews received",
+    )
