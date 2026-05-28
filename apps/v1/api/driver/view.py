@@ -16,6 +16,7 @@ from apps.v1.api.pagination_service import oauth2
 from apps.v1.api.ride.schema import LocationSchema
 from config import db_config
 from core.utils.token_authentication import JWTOAuth2
+from apps.v1.api.auth.services.user_profile_service import UserProfileService
 
 driverrouter = APIRouter()
 getdb = db_config.get_db
@@ -260,5 +261,25 @@ async def driver_approve_reject_api_by_admin(
         db,
         current_user,
         body.dict()
+    )
+    return response
+
+@driverrouter.post("/submit_review")
+async def review_api(
+    body: schema.ReviewSchema,
+    authrouter: HTTPAuthorizationCredentials = Depends(oauth2),
+    db: AsyncSession = Depends(getdb),
+):
+    """This API is used to update the review for the user/customer
+    Args:
+        body (ReviewSchema): The request body containing review details.
+        authrouter (HTTPAuthorizationCredentials): The authorization credentials.
+        db (AsyncSession): The database session.
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    current_user = JWTOAuth2().verify_access_token(authrouter.credentials)
+    response = await UserProfileService().submit_review_service(
+        db, current_user, body.dict()
     )
     return response

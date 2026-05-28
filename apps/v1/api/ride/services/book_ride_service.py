@@ -180,8 +180,9 @@ class BookRideService(BaseResponseService):
                     db,
                     user_id,
                     coupon_code,
-                    body.get("ride_fare", 0.0)
+                    body.get("ride_type")
                 )
+
                 if not json.loads(result.body)["status"] == "success":
                     return self.response(
                         status.HTTP_400_BAD_REQUEST,
@@ -210,6 +211,7 @@ class BookRideService(BaseResponseService):
             )
             # Emit searching state
             user_data = {
+                "ride_request_id": ride_request_id,
                 "pickup_latitude": body["pickup_latitude"],
                 "pickup_longitude": body["pickup_longitude"],
                 "pickup_address": body["pickup_address"],

@@ -60,6 +60,7 @@ class InfoMessage:
     driverVehicleUpdatedSuccess = "Driver vehicle details are updated successfully!"
     couponApplied = "Coupon applied successfully!"
     couponsFetched = "Available coupons fetched successfully!"
+    reviewSubmitted = "Review submitted successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -129,3 +130,7 @@ class ErrorMessage:
     rideTypeRequired = "Ride type is required to approve a driver documents."
     rejectionReasonRequired = "Reason is required to reject a driver documents."
     invalidUserOrNotFound = "User not found or invalid user type."
+    invalidRating = "Rating must be between 1 and 5."
+    notAuthorized = "You are not authorized to perform this action."
+    cannotReviewIncompleteRide = "You cannot review a ride that is not completed."
+    reviewAlreadySubmitted = "You have already submitted a review for this ride."

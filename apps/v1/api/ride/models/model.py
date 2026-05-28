@@ -51,7 +51,6 @@ class Ride(Base, TimestampMixin):
 
     ride_date = Column(DateTime, nullable=constant.STATUS_FALSE, doc="Date of the ride")
     ride_type = Column(String(50), nullable=constant.STATUS_FALSE, doc="Type of ride")
-    # ride_time = Column(DateTime, nullable=False, doc="Time of the ride")
     status = Column(
         Integer,
         nullable=constant.STATUS_FALSE,
@@ -106,6 +105,19 @@ class Ride(Base, TimestampMixin):
         default=constant.STATUS_FALSE,
         doc="Whether the ride is a commuter ride (1 for yes, 0 for no)",
     )
+    is_city = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_FALSE,
+        doc="Whether the ride is a city saver ride (1 for yes, 0 for no)",
+    )
+    is_comfort = Column(
+        Integer,
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_FALSE,
+        doc="Whether the ride is a comfort saver ride (1 for yes, 0 for no)",
+    )
+
     pickup_latitude = Column(
         Float, nullable=constant.STATUS_FALSE, doc="Latitude of ride location"
     )
@@ -139,3 +151,16 @@ class Ride(Base, TimestampMixin):
         nullable=constant.STATUS_TRUE,
         doc="Who cancelled the ride (user or driver)",
     )
+    driver_rating = Column(
+        Float,
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_NULL,
+        doc="Rating given by customer to driver",
+    )
+    driver_review = Column(
+        String(500),
+        nullable=constant.STATUS_TRUE,
+        default=constant.STATUS_NULL,
+        doc="Review given by customer to driver",
+    )
+

@@ -17,8 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    Double,
-    func
+    Double
 )
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum

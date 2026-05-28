@@ -107,6 +107,7 @@ EMAIL_CHANNEL = "email"
 # Declare data types constants
 EMPTY_LIST = []
 EMPTY_DICT = {}
+EMPTY_STRING = ""
 
 
 # Ride Status Constants
@@ -116,3 +117,6 @@ MIN_DISTANCE = 0.02
 RIDE_REQUEST_BODY = "A rider is waiting nearby. Tap to accept before it’s gone."
 COUPON_WELCOME50 = "WELCOME50"
 COUPON_COMMUTE25 = "COMMUTE25"
+COUPON_KUBERSAVER = "KUBERSAVER"
+CITY_RIDE = "City"
+COMFORT_RIDE = "Comfort"

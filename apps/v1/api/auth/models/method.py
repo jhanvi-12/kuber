@@ -170,8 +170,9 @@ class UserAuthMethod:
             date_filters = [
                 self.model.user_id == user_id,
                 self.model.deleted_at == constant.STATUS_NULL,
-                self.model.status.in_([RideStatusEnum.COMPLETED.value,
-                                        RideStatusEnum.CANCELLED.value]),
+                # TODO : Handle the case when we need to show cancelled and completed rides in future if needed
+                # self.model.status.in_([RideStatusEnum.COMPLETED.value,
+                #                         RideStatusEnum.CANCELLED.value]),
                 func.date(self.model.created_at) >= start_date.date(),
                 func.date(self.model.created_at) <= end_date.date(),
             ]

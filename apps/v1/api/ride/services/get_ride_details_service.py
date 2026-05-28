@@ -121,16 +121,36 @@ class RideDetailService(BaseResponseService):
             message = InfoMessage.driverStatusUpdated
             update_status = status_mapping.get(ride_status)
             if update_status["status"] == RideStatusEnum.COMPLETED.value:
-                if ride.coupon_code == constant.COUPON_WELCOME50:
-                    ride.is_welcome = constant.STATUS_TRUE
-
-                elif ride.coupon_code == constant.COUPON_COMMUTE25:
-                    ride.is_commuter = constant.STATUS_TRUE
+                if ride.coupon_code == constant.COUPON_KUBERSAVER:
+                    if ride.ride_type == constant.CITY_RIDE:
+                        ride.is_city = constant.STATUS_TRUE
+                        ride.is_comfort = constant.STATUS_FALSE
+                    elif ride.ride_type == constant.COMFORT_RIDE:
+                        ride.is_comfort = constant.STATUS_TRUE
+                        ride.is_city = constant.STATUS_FALSE
+                    else:
+                        ride.is_city = constant.STATUS_FALSE
+                        ride.is_comfort = constant.STATUS_FALSE
+                    # TODO : Handle other coupon types if needed in future
+                    # ride.is_welcome = constant.STATUS_FALSE
+                    # ride.is_commuter = constant.STATUS_FALSE
+                # elif ride.coupon_code == constant.COUPON_WELCOME50:
+                #     ride.is_welcome = constant.STATUS_TRUE
+                #     ride.is_city = constant.STATUS_FALSE
+                #     ride.is_comfort = constant.STATUS_FALSE
+                # elif ride.coupon_code == constant.COUPON_COMMUTE25:
+                #     ride.is_commuter = constant.STATUS_TRUE
+                #     ride.is_city = constant.STATUS_FALSE
+                #     ride.is_comfort = constant.STATUS_FALSE
                 else:
-                    ride.is_welcome = constant.STATUS_FALSE
-                    ride.is_commuter = constant.STATUS_FALSE
+                    # TODO : Handle case when no coupon code is applied if needed in future
+                    # ride.is_welcome = constant.STATUS_FALSE
+                    # ride.is_commuter = constant.STATUS_FALSE
+                    ride.is_city = constant.STATUS_FALSE
+                    ride.is_comfort = constant.STATUS_FALSE
                 ride.status = update_status["status"]
                 message = update_status["message"]
+
             db.add(ride)
             await db.commit()
 

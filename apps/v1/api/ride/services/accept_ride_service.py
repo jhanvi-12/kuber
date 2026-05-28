@@ -148,6 +148,8 @@ class RideAcceptService(BaseResponseService):
                 else None
             )
             response["ride_fare"] = ride.ride_fare
+            response["ride_id"] = ride.id
+            response["ride_uuid"] = ride.ride_uuid
             return self.response(status.HTTP_200_OK, InfoMessage.rideAcceptedSuccessfully, response)
 
         except Exception:
