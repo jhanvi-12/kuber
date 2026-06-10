@@ -116,13 +116,18 @@ class RideAcceptService(BaseResponseService):
             # Emit socket event
             data = jsonable_encoder(driver_data)
             data["plate_number"] = vehicle_data.plate_number
+            # data["vehicle_name"] = vehicle_data.make
+            # data["vehilce_type"] = vehicle_data.vehicle_type
+            # data["duration"] = ride.duration
+            # data["ride_uuid"] = ride.ride_uuid
             result = RideResponse().dump(data)
             # Emitting the book_ride_status event with accepted status
             await RideSocketEmitter.book_ride_status(
                 ride_status=RideStatusEnum.ACCEPTED.value,
                 ride_request_id=ride_request_id,
                 ride_id=ride.id,
-                driver_data=result
+                driver_data=result,
+                user_id=ride.user_id
             )
 
             try:

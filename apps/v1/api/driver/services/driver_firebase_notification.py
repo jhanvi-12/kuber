@@ -49,30 +49,22 @@ class DriverFirebaseNotification(BaseResponseService):
         device_token: str,
         title: str,
         body: str,
-        data: Optional[Dict] = None
-    ):
+        data: Optional[Dict] = None,
+    ) -> bool:
         """
-        Send ride notifications to nearby drivers.
+        Send a push notification to a single device token.
 
-        Args:
-            drivers: List of dicts with keys: 'device_token' and 'driver_id'.
-            title: Title of the notification.
-            body: Body of the notification.
-            data: Optional extra payload.
+        Returns:
+            bool: True when FCM accepted the message, False otherwise.
         """
         user_type = data.get("user_type") if data else None
         if not await self._initialize_firebase(user_type):
-            return self.response(
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-                ErrorMessage.generalTryAgain
-            )
-        logger.info("*************Hello******")
+            return False
         try:
             message = self._build_message(device_token, title, body, data)
             messaging.send(message)
-            print("Notification sent successfully")
-            logger.info(f"Notification sent to user or driver.")
+            logger.info("FCM notification sent successfully")
+            return True
         except Exception as e:
-            logger.error(f"Failed to send notification to user or driver : {str(e)}")
-
-        return self.response(status.HTTP_200_OK, InfoMessage.notificationSentToDrivers)
+            logger.error(f"Failed to send FCM notification: {str(e)}")
+            return False

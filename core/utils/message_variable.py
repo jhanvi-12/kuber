@@ -61,6 +61,7 @@ class InfoMessage:
     couponApplied = "Coupon applied successfully!"
     couponsFetched = "Available coupons fetched successfully!"
     reviewSubmitted = "Review submitted successfully!"
+    rideStatusFetched = "Ride status fetched successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -134,3 +135,4 @@ class ErrorMessage:
     notAuthorized = "You are not authorized to perform this action."
     cannotReviewIncompleteRide = "You cannot review a ride that is not completed."
     reviewAlreadySubmitted = "You have already submitted a review for this ride."
+    alreadyLoggedIn = "You are already logged in on another device. Please logout from your previous device first."

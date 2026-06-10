@@ -8,7 +8,7 @@ from core.utils import constant_variable
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT"))
 REDIS_BROKER_URL = os.environ.get("REDIS_BROKER_URL")
-SOCKET_CHANNEL = os.environ.get("SOCKET_CHANNEL")
+SOCKET_CHANNEL = os.environ.get("SOCKET_CHANNEL", "socket:events")
 
 redis_client = redis.Redis(
     host=REDIS_HOST,

@@ -22,6 +22,8 @@ from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
 from core.utils.db_method import DataBaseMethod
+from config.redis_config import redis_client
+from apps.v1.api.ride.serializer import RideSchema
 
 
 class RideDetailService(BaseResponseService):
@@ -171,6 +173,7 @@ class RideDetailService(BaseResponseService):
                 ride_request_id=None,
                 ride_id=ride.id,
                 driver_data=data,
+                user_id=ride.user_id
             )
             return self.response(
                 status.HTTP_200_OK,
@@ -349,6 +352,58 @@ class RideDetailService(BaseResponseService):
                 )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.ridesFetched, serialized_data
+            )
+
+        except Exception:
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain,
+            )
+
+    async def fetch_ride_status_service(self, db: AsyncSession, current_user: dict, ride_request_id: str):
+        """This method is used to fetch the ride status.
+
+        Args:
+            db (AsyncSession): Db Session
+            current_user (dict): user for which need to fetch the ride status.
+            ride_request_id (str): ride request id for which need to fetch the status.
+
+        """
+        try:
+            ride_key = f"ride:search:{ride_request_id}"
+
+            # Fetch ride request
+            ride_req = await redis_client.hgetall(ride_key)
+            if not ride_req:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                )
+
+            if int(ride_req.get("user_id")) != current_user.get("user_id"):
+                return self.response(
+                    status.HTTP_403_FORBIDDEN, ErrorMessage.notAuthorized
+                )
+            user_obj = await UserAuthMethod(User).find_by_id(
+                db, current_user["user_id"]
+            )
+            data = RideSchema().dump({
+                "ride_request_id": ride_request_id,
+                "ride_uuid": ride_req.get("ride_uuid"),
+                "distance": ride_req.get("distance"),
+                "duration": ride_req.get("duration"),
+                "status": ride_req.get("status"),
+                "pickup_latitude": ride_req.get("pickup_latitude"),
+                "pickup_longitude": ride_req.get("pickup_longitude"),
+                "pickup_address": ride_req.get("pickup_address"),
+                "destination_latitude": ride_req.get("destination_latitude"),
+                "destination_longitude": ride_req.get("destination_longitude"),
+                "destination_address": ride_req.get("destination_address"),
+                "ride_fare": ride_req.get("ride_fare"),
+                "username": user_obj.full_name,
+                "mobile_number": user_obj.mobile
+            })
+            return self.response(
+                status.HTTP_200_OK, InfoMessage.rideStatusFetched, data
             )
 
         except Exception:

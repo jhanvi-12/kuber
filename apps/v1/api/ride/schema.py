@@ -98,6 +98,7 @@ class RideOTPShema(BaseModel):
 
 class RideCancleSchema(BaseModel):
     """This class is used to cancel the ride with schema"""
+    ride_id: int
     user_type: str
     reason: str
     description: str
@@ -106,6 +107,7 @@ class RideCancleSchema(BaseModel):
         """Config class"""
         json_schema_extra = {
             "example": {
+                "ride_id": 1,
                 "user_type": "driver",
                 "reason": "taking too long",
                 "description": "Customer changed mind"

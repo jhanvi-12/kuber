@@ -10,8 +10,21 @@ from core.utils import constant_variable
 DRIVER_ALIVE_TTL = 120       # 2 min — renewed by heartbeat
 DRIVER_META_TTL = 1800       # half an hour — auto cleanup if driver never logs out cleanly
 DRIVER_GEO_TTL = 1800        # half an hour — same
+# FCM registration tokens are JWT-length strings (typically 140+ chars).
+MIN_DEVICE_TOKEN_LENGTH = 80
+INVALID_DEVICE_TOKEN_VALUES = frozenset({"", "none", "null", "undefined"})
 
 LOG = logging.getLogger(__name__)
+
+
+def is_valid_device_token(device_token) -> bool:
+    """Return True for a non-empty FCM token; reject placeholders like 'None'."""
+    if device_token is None:
+        return False
+    token = str(device_token).strip()
+    if token.lower() in INVALID_DEVICE_TOKEN_VALUES:
+        return False
+    return len(token) >= MIN_DEVICE_TOKEN_LENGTH
 
 class RedisRideRepo:
     """This class is used to represenst all ride methods to store data in redis."""
@@ -22,7 +35,7 @@ class RedisRideRepo:
         key = f"ride:search:{ride_request_id}"
 
         data = {
-            "status": "Searching",
+            "status": "-1", # Searching
             "user_id": user_id,
             "pickup_latitude": payload["pickup_latitude"],
             "pickup_longitude": payload["pickup_longitude"],
@@ -51,6 +64,7 @@ class RedisRideRepo:
             # Cleanup related keys (if any)
             await pipe.delete(f"ride:lock:{ride_request_id}")
             await pipe.delete(f"ride:candidates:{ride_request_id}")
+            await pipe.delete(f"ride:notified:{ride_request_id}")
 
             await pipe.execute()
 
@@ -223,13 +237,15 @@ class RedisRideRepo:
     @staticmethod
     async def mark_driver_notified(ride_id: str, driver_id: str) -> bool:
         """
-        Atomically marks driver as notified.
-        Returns True only if driver was NOT notified before.
+        Atomically marks driver as notified for this ride search.
+        Returns True only if driver was NOT notified before (SADD added 1 member).
         """
-        return await redis_client.sadd(
-            f"ride:candidates:{ride_id}",
-            driver_id
+        added = await redis_client.sadd(
+            f"ride:notified:{ride_id}",
+            str(driver_id),
         )
+        await redis_client.expire(f"ride:notified:{ride_id}", 600)
+        return added == 1
 
     @classmethod
     async def get_assigned_driver(cls, ride_request_id: str):
@@ -338,9 +354,10 @@ class RedisDriverRepo:
             # 1. Add to geo index
             pipe.geoadd(geo_key, (lng, lat, str(driver_id)))
 
-            # 2. Set all meta fields individually (avoids hmset/hset mapping issue)
+            # 2. Set meta fields — never overwrite a valid token with None/empty
             pipe.hset(meta_key, "ride_type", str(ride_type))
-            pipe.hset(meta_key, "device_token", str(device_token))
+            if device_token:
+                pipe.hset(meta_key, "device_token", str(device_token))
             pipe.hset(meta_key, "is_available", "1")
 
             # 3. Set TTL on meta so it auto-cleans if driver never logs out
@@ -367,7 +384,7 @@ class RedisDriverRepo:
             pipe.hset(meta_key, "is_available", "0")
 
             # 3. Set short TTL on meta (cleanup after 5 min of being offline)
-            pipe.expire(meta_key, 300)
+            pipe.expire(meta_key, 10)
 
             # 4. Delete alive key immediately
             pipe.delete(alive_key)
@@ -375,6 +392,19 @@ class RedisDriverRepo:
             await pipe.execute()
 
         LOG.info(f"Driver {driver_id} offline | ride_type={ride_type}")
+
+    @classmethod
+    async def update_driver_location(
+        cls,
+        driver_id: int,
+        ride_type: str,
+        lat: float,
+        lng: float,
+        device_token: str = None,
+    ):
+        """Refresh geo position + heartbeat without clearing a valid stored token."""
+        await cls._set_online(driver_id, ride_type, lat, lng, device_token)
+        await cls.refresh_heartbeat(driver_id)
 
     @classmethod
     async def refresh_heartbeat(cls, driver_id: int):

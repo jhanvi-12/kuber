@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import env_config
 from config.db_session import session_factory
 from config.redis_config import REDIS_BROKER_URL, SOCKET_CHANNEL, redis_client
+from apps.v1.api.auth.models.attribute import UserTypeEnum
 from core.utils.helper import send_request
 from core.utils.message_variable import *
 from core.utils.token_authentication import JWTOAuth2
@@ -79,8 +80,7 @@ async def redis_event_listener():
                     await sio.emit(event, data, room=room)
                     print(f"Emitted '{event}' to room '{room}'")
                 else:
-                    await sio.emit(event, data)
-                    print(f"Emitted '{event}' globally")
+                    print(f"Skipped '{event}': no room in payload (avoid global broadcast)")
 
             except json.JSONDecodeError as e:
                 print(f"Failed to parse message: {e}")
@@ -108,13 +108,41 @@ async def connect(sid, environ):
     if not token:
         print("Token missing. Disconnecting...")
         await sio.disconnect(sid)
+        return
 
-    # Save token in the socket session
-    await sio.save_session(sid, {"token": f"Bearer {token}"})
-    print(f"Client connected with token: {token}")
+    try:
+        user_data = JWTOAuth2().verify_access_token(token)
+    except Exception:
+        print("Invalid token. Disconnecting...")
+        await sio.disconnect(sid)
+        return
+
+    user_id = user_data.get("user_id")
+    user_type = user_data.get("user_type")
+
+    await sio.save_session(sid, {
+        "token": f"Bearer {token}",
+        "user_id": user_id,
+        "user_type": user_type,
+    })
+    print(f"Client connected | user_id={user_id} user_type={user_type}")
+
+    if user_type == UserTypeEnum.CUSTOMER.value:
+        await sio.enter_room(sid, f"user:{user_id}")
+        print(f"{sid} auto-joined user:{user_id}")
+
+    if user_type == UserTypeEnum.DRIVER.value:
+        await sio.enter_room(sid, f"driver:{user_id}")
+        print(f"{sid} auto-joined driver:{user_id}")
 
     await sio.emit(
-        "response", {"message": "Welcome to the Socket.IO server!"}, room=sid
+        "response",
+        {
+            "message": "Welcome to the Socket.IO server!",
+            "user_id": user_id,
+            "user_type": user_type,
+        },
+        room=sid,
     )
 
 
@@ -180,13 +208,13 @@ async def driver_location_update(sid, data):
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
             return
 
-        # Update GEO location (RAW COMMAND – SAFE)
-        await RedisDriverRepo.update_driver_status(
+        # Update GEO location and keep heartbeat alive
+        await RedisDriverRepo.update_driver_location(
             driver_id,
             ride_type,
-            True,  # is_available is always True when sending location updates
             lat,
-            lng, device_token
+            lng,
+            device_token,
         )
 
         await sio.emit(
@@ -204,11 +232,52 @@ async def driver_location_update(sid, data):
 
 @sio.on("join_room")
 async def join_room(sid, data):
-    """This event is used to join the room for the ride."""
-    ride_id = data["ride_id"]
-    room_name = f"ride:{ride_id}"  # prepend 'ride:' to match backend emit
+    """
+    Customer joins ride:{ride_request_id} after booking.
+    FE must emit: join_room { "ride_request_id": "<uuid>" }
+    """
+    user_data = await get_authenticated_user(sid)
+    if not user_data:
+        return
+
+    if isinstance(data, str):
+        data = json.loads(data)
+
+    ride_request_id = data.get("ride_request_id") or data.get("ride_id")
+    if not ride_request_id:
+        await sio.emit(
+            "error",
+            {"message": "ride_request_id is required"},
+            room=sid,
+        )
+        return
+
+    redis_key = f"ride:search:{ride_request_id}"
+    ride_req = await redis_client.hgetall(redis_key)
+    if not ride_req:
+        await sio.emit(
+            "error",
+            {"message": "Ride not found or expired"},
+            room=sid,
+        )
+        return
+
+    if str(ride_req.get("user_id")) != str(user_data["user_id"]):
+        await sio.emit(
+            "error",
+            {"message": "Not authorized for this ride"},
+            room=sid,
+        )
+        return
+
+    room_name = f"ride:{ride_request_id}"
     await sio.enter_room(sid, room_name)
-    print(f"{sid} joined room {room_name}")
+    print(f"{sid} joined {room_name}")
+    await sio.emit(
+        "room_joined",
+        {"room": room_name, "ride_request_id": ride_request_id},
+        room=sid,
+    )
 
 # 3rd event
 @sio.event
@@ -234,10 +303,13 @@ async def cancel_ride(sid, data):
             await sio.emit("error", {"message": error_message}, room=sid)
 
         data = response.json()
-        # Emit event to user that driver arrived
+        session = await sio.get_session(sid)
+        user_id = session.get("user_id")
+        target_room = f"user:{user_id}" if user_id else sid
         await sio.emit(
             "ride_cancelled",
             {"data": data},
+            room=target_room,
         )
 
     except Exception as e:

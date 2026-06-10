@@ -218,11 +218,13 @@ class BookRideService(BaseResponseService):
                 "destination_latitude": body["destination_latitude"],
                 "destination_longitude": body["destination_longitude"],
                 "destination_address": body["destination_address"],
-                "ride_fare": body["ride_fare"],
+                "ride_fare": body["total_fare"],
                 "username": user_obj.full_name,
                 "mobile_number": user_obj.mobile
             }
-            await RideSocketEmitter.ride_searching(ride_request_id)
+            await RideSocketEmitter.ride_searching(
+                ride_request_id, user_id=current_user["user_id"]
+            )
 
             # Start driver search ASYNC (background)
             asyncio.create_task(DriverSearchService.start_wave(
@@ -230,7 +232,8 @@ class BookRideService(BaseResponseService):
                 body.get("ride_type"),
                 body.get("pickup_latitude"),
                 body.get("pickup_longitude"),
-                user_data
+                user_data,
+                user_id=current_user["user_id"]
             ))
 
             return self.response(
