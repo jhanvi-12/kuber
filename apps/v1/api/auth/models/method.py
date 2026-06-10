@@ -271,3 +271,20 @@ class UserAuthMethod:
                 "limit": page_limit
             }
             return data
+
+    async def find_active_session_by_id(self, db: AsyncSession, user_id=None, driver_id=None):
+        """This function will return the active session for the user/driver"""
+        async with db:  # Ensure the session context
+            stmt = select(self.model)
+            if user_id:
+                stmt = select(self.model).where(
+                    self.model.user_id == user_id,
+                    self.model.deleted_at == constant.STATUS_NULL
+                )
+            elif driver_id:
+                stmt = select(self.model).where(
+                    self.model.driver_id == driver_id,
+                    self.model.deleted_at == constant.STATUS_NULL
+                )
+            result = await db.execute(stmt)
+            return result.scalars().first()

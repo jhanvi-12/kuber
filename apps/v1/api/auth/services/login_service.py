@@ -32,6 +32,7 @@ from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
 from apps.v1.api.auth.models.model import OtpVerification
 from apps.v1.api.auth.models.model import Session
+from apps.v1.api.auth.models.method import UserAuthMethod
 
 class LoginService(BaseResponseService):
     """This class represents the login service"""
@@ -91,10 +92,19 @@ class LoginService(BaseResponseService):
                 token.decode("utf-8") if isinstance(token, bytes) else token
             )
 
+            # Check if user/driver already has an active session
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
                 user_id, driver_id = None, user_obj.id
+                existing_session = await UserAuthMethod(Session).find_active_session_by_id(db, user_id, driver_id)
             else:
                 user_id, driver_id = user_obj.id, None
+                existing_session = await UserAuthMethod(Session).find_active_session_by_id(db, user_id, driver_id)
+
+            if existing_session:
+                return self.response(
+                    status.HTTP_409_CONFLICT,
+                    ErrorMessage.alreadyLoggedIn,
+                )
 
             session = Session(
                 user_id=user_id,

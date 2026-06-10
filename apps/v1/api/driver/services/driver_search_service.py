@@ -8,7 +8,7 @@ from apps.v1.api.driver.services.driver_firebase_notification import DriverFireb
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from config.redis_config import redis_client
-from core.redis_repo import RedisRideRepo
+from core.redis_repo import RedisRideRepo, is_valid_device_token
 from core.utils import constant_variable
 
 LOG = logging.getLogger(__name__)
@@ -67,10 +67,10 @@ class DriverSearchService:
             LOG.info(f"Geo found {len(driver_ids)} drivers in {radius}km for {ride_type}")
 
             # --- Gate 1: Heartbeat check (logged in) ---
-            pipe = redis_client.pipeline()
-            for driver_id in driver_ids:
-                await pipe.exists(f"driver:alive:{driver_id}")
-            alive_results = await pipe.execute()
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for driver_id in driver_ids:
+                    pipe.exists(f"driver:alive:{driver_id}")
+                alive_results = await pipe.execute()
 
             alive_ids = [
                 did for did, alive in zip(driver_ids, alive_results) if alive
@@ -80,14 +80,14 @@ class DriverSearchService:
             if not alive_ids:
                 return []
 
-            # --- Gate 2: Availability + device token (single hgetall per driver) ---
-            pipe = redis_client.pipeline()
-            for driver_id in alive_ids:
-                await pipe.hmget(
-                    f"driver:meta:{driver_id}",
-                    "is_available", "device_token"
-                )
-            meta_results = await pipe.execute()
+            # --- Gate 2: Availability + device token ---
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for driver_id in alive_ids:
+                    pipe.hmget(
+                        f"driver:meta:{driver_id}",
+                        "is_available", "device_token"
+                    )
+                meta_results = await pipe.execute()
 
             eligible = []
             for driver_id, meta in zip(alive_ids, meta_results):
@@ -97,13 +97,13 @@ class DriverSearchService:
                     LOG.info(f"Driver {driver_id} not available, skip")
                     continue
 
-                if not device_token or len(str(device_token)) < 10:
+                if not is_valid_device_token(device_token):
                     LOG.warning(f"Driver {driver_id} has no valid device token, skip")
                     continue
 
                 eligible.append({
                     "driver_id": driver_id,
-                    "device_token": str(device_token)
+                    "device_token": str(device_token).strip()
                 })
 
             LOG.info(
@@ -125,11 +125,14 @@ class DriverSearchService:
         data: Dict[str, str]
     ) -> bool:
         try:
-            await DriverFirebaseNotification().send_notification_to_drivers(
+            sent = await DriverFirebaseNotification().send_notification_to_drivers(
                 device_token, title, body, data
             )
-            LOG.info(f"Notification sent → driver={driver_id}")
-            return True
+            if sent:
+                LOG.info(f"Notification sent → driver={driver_id}")
+            else:
+                LOG.warning(f"FCM rejected notification → driver={driver_id}")
+            return sent
         except Exception as e:
             LOG.error(f"Notification failed → driver={driver_id}: {e}", exc_info=True)
             return False
@@ -145,10 +148,10 @@ class DriverSearchService:
                 f"ride:notified:{ride_request_id}",
                 f"ride:candidates:{ride_request_id}",
             ]
-            pipe = redis_client.pipeline()
-            for key in keys:
-                await pipe.expire(key, 60)  # 60s grace period, not 2s
-            await pipe.execute()
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for key in keys:
+                    pipe.expire(key, 60)
+                await pipe.execute()
             LOG.info(f"Cleanup TTL set for ride={ride_request_id}")
         except Exception as e:
             LOG.error(f"Cleanup error ride={ride_request_id}: {e}")
@@ -159,7 +162,8 @@ class DriverSearchService:
         ride_type: str,
         lat: float,
         lng: float,
-        user_data: Dict[str, Any]
+        user_data: Dict[str, Any],
+        user_id: int
     ):
         """Find drivers in waves and send notifications to nearby drivers."""
         if not all([ride_request_id, ride_type, lat is not None, lng is not None]):
@@ -198,7 +202,9 @@ class DriverSearchService:
                             ride_request_id, RideStatusEnum.FAILED.value
                         )
                         await RideSocketEmitter.book_ride_status(
-                            RideStatusEnum.FAILED.value, ride_request_id
+                            ride_status=RideStatusEnum.FAILED.value,
+                            ride_request_id=ride_request_id,
+                            user_id=user_id,
                         )
                     return
 
@@ -245,7 +251,7 @@ class DriverSearchService:
                     if success:
                         stats["sent"] += 1
                         wave_sent += 1
-                        await RedisRideRepo.add_candidates(ride_request_id, [driver_id])
+                        await RedisRideRepo.add_candidates(ride_request_id, driver_id)
                     else:
                         stats["failed"] += 1
 
@@ -272,11 +278,15 @@ class DriverSearchService:
                         ride_request_id, RideStatusEnum.FAILED.value
                     )
                     await RideSocketEmitter.book_ride_status(
-                        RideStatusEnum.FAILED.value, ride_request_id
+                        ride_status=RideStatusEnum.FAILED.value,
+                        ride_request_id=ride_request_id,
+                        user_id=user_id,
                     )
             except Exception as inner:
                 LOG.error(f"Failure handler error: {inner}")
 
         finally:
-            # Always clean up, whether success, failure, or exception
-            await DriverSearchService._cleanup_ride(ride_request_id)
+            # Only expire search keys once dispatch has finished (accepted/failed/cancelled).
+            status = await RedisRideRepo.get_status(ride_request_id)
+            if status != "Searching":
+                await DriverSearchService._cleanup_ride(ride_request_id)
