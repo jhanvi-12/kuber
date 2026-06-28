@@ -150,17 +150,13 @@ class RideSocketEmitter:
 
         await RideSocketEmitter._publish(
             "book_ride_status",
-            {
-                "status": ride_status,
-                "timestamp": datetime.now().isoformat(),
-                "data": data,
-            },
+            data,
             room=RideSocketEmitter._user_room(resolved_user_id),
         )
 
     @staticmethod
     async def ride_completed(ride_id, data, user_id: int = None):
-        """Emit when ride is completed by driver — scoped to the booking customer."""
+        """Emit when ride is completed by driver scoped to the booking customer."""
         if not user_id:
             LOG.warning("ride_completed skipped: user_id is required")
             return
@@ -176,7 +172,7 @@ class RideSocketEmitter:
 
     @staticmethod
     async def no_driver_found(ride_request_id: str, user_id: int = None):
-        """Emit when no drivers are found — scoped to the booking customer."""
+        """Emit when no drivers are found scoped to the booking customer."""
         resolved_user_id = await RideSocketEmitter._resolve_user_id(
             ride_request_id, user_id
         )

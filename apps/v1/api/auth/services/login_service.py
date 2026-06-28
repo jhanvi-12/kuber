@@ -29,10 +29,9 @@ from config import aws_config
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils.token_authentication import JWTOAuth2
-from apps.v1.api.driver.models.attribute import DriverStatusEnum
-from apps.v1.api.auth.models.model import OtpVerification
 from apps.v1.api.auth.models.model import Session
 from apps.v1.api.auth.models.method import UserAuthMethod
+from apps.v1.api.vehicle.models.model import Vehicle
 
 class LoginService(BaseResponseService):
     """This class represents the login service"""
@@ -85,6 +84,8 @@ class LoginService(BaseResponseService):
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id
                 )
+                vehicle_obj = await UserAuthMethod(Vehicle).find_by_driver_id(db, user_obj.id)
+                data["vehicle_type"] = vehicle_obj.vehicle_type if vehicle_obj is not None else None
                 data["plan_details"] = jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
 
             token = JWTOAuth2().encode_access_token(token_data)

@@ -179,7 +179,7 @@ class DriverSearchService:
             while True:
                 # Always check status first before any work
                 status = await RedisRideRepo.get_status(ride_request_id)
-                if status != "Searching":
+                if status != "-1":
                     LOG.info(
                         f"Ride {ride_request_id} status={status}, "
                         f"stopping search. stats={stats}"
@@ -197,7 +197,7 @@ class DriverSearchService:
                     LOG.warning(f"Max waves reached for ride={ride_request_id}. stats={stats}")
                     # Re-check before marking failed (driver may have just accepted)
                     status = await RedisRideRepo.get_status(ride_request_id)
-                    if status == "Searching":
+                    if status == "-1":
                         await RedisRideRepo.update_status(
                             ride_request_id, RideStatusEnum.FAILED.value
                         )
@@ -273,7 +273,7 @@ class DriverSearchService:
             )
             try:
                 status = await RedisRideRepo.get_status(ride_request_id)
-                if status == "Searching":
+                if status == "-1":
                     await RedisRideRepo.update_status(
                         ride_request_id, RideStatusEnum.FAILED.value
                     )
@@ -288,5 +288,5 @@ class DriverSearchService:
         finally:
             # Only expire search keys once dispatch has finished (accepted/failed/cancelled).
             status = await RedisRideRepo.get_status(ride_request_id)
-            if status != "Searching":
+            if status != "-1":
                 await DriverSearchService._cleanup_ride(ride_request_id)

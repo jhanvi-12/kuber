@@ -18,6 +18,7 @@ from core.utils.helper import send_request
 from core.utils.message_variable import *
 from core.utils.token_authentication import JWTOAuth2
 from core.redis_repo import RedisDriverRepo
+from workers.dispatch_worker import DISPATCH_WORKER_ENABLED, run_dispatch_worker
 
 backend_url = env_config.BACKEND_URL
 
@@ -25,7 +26,10 @@ backend_url = env_config.BACKEND_URL
 sio = socketio.AsyncServer(
     async_mode="aiohttp",
     cors_allowed_origins="*",
-    client_manager=socketio.AsyncRedisManager(REDIS_BROKER_URL)
+    client_manager=socketio.AsyncRedisManager(REDIS_BROKER_URL),
+    ping_interval=25,
+    ping_timeout=60,
+    max_http_buffer_size=1_000_000,
 )
 # Create a web application
 app = web.Application()
@@ -321,9 +325,21 @@ async def start_background_tasks(app):
     """Function to start the background tasks."""
     app["redis_task"] = asyncio.create_task(redis_event_listener())
 
+    # Run dispatch worker in-process (no extra systemd service needed).
+    # Enable only on the socket service unit via DISPATCH_WORKER_ENABLED=true.
+    if DISPATCH_WORKER_ENABLED:
+        app["dispatch_worker_task"] = asyncio.create_task(run_dispatch_worker())
+        print("Dispatch worker started inside socket_server process")
+    else:
+        app["dispatch_worker_task"] = None
+        print("Dispatch worker disabled (set DISPATCH_WORKER_ENABLED=true to enable)")
+
 async def cleanup_background_tasks(app):
     """Function to clean the background tasks."""
     app["redis_task"].cancel()
+    dispatch_task = app.get("dispatch_worker_task")
+    if dispatch_task:
+        dispatch_task.cancel()
 
 app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
