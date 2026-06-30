@@ -10,7 +10,13 @@ from apps.v1.api.ride.models.model import Ride
 from core.utils.message_variable import *
 from config.redis_config import redis_client
 from core.utils import constant_variable as constant
-
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
+from apps.v1.api.auth.models.method import UserAuthMethod
+from apps.v1.api.driver.services.driver_firebase_notification import \
+    DriverFirebaseNotification
+from apps.v1.api.auth.models.attribute import UserTypeEnum
+from apps.v1.api.auth.models.model import User
+from apps.v1.api.driver.models.model import Driver
 
 class UserRideCancelService(BaseResponseService):
     """This class is used to define the ride acceptance service methods."""
@@ -39,7 +45,9 @@ class UserRideCancelService(BaseResponseService):
                     ErrorMessage.userOrDriverNotFound,
                 )
             # Fetch the ride and driver details
-            ride = await DriverMethod(Ride).get_driver_by_id(db, ride_id)
+            ride = await UserAuthMethod(Ride).find_by_id(
+                db, ride_id
+            )
 
             if not ride:
                 return self.response(
@@ -93,6 +101,45 @@ class UserRideCancelService(BaseResponseService):
             await db.commit()
             await db.refresh(ride)
 
+            await RideSocketEmitter.book_ride_status(
+                ride_status=update_status,
+                ride_request_id=None,
+                ride_id=ride.id,
+                driver_data=None,
+                user_id=ride.user_id,
+            )
+
+            try:
+                if user.user_type == UserTypeEnum.DRIVER.value:
+                    recipient_id = ride.user_id
+                    recipient_model = User
+                    notification_title = InfoMessage.rideCancelledTitle
+                    notification_message = InfoMessage.driverCancelledRide.format(driver_name=user.full_name)
+                else:
+                    recipient_id = ride.driver_id
+                    recipient_model = Driver
+                    notification_title = InfoMessage.rideCancelledTitle
+                    notification_message = InfoMessage.userCancelledRide.format(user_name=user.full_name)
+
+                recipient = await UserAuthMethod(recipient_model).find_by_id(
+                    db,
+                    recipient_id
+                )
+
+                if recipient and recipient.device_token:
+                    await DriverFirebaseNotification().send_notification_to_drivers(
+                        recipient.device_token,
+                        notification_message,
+                        notification_title,
+                        None
+                    )
+                    print(f" Notification sent successfully to user {recipient.id}")
+
+            except Exception as e:
+                print(
+                    f" Failed to send notification to driver {recipient.id}: {str(e)}",
+                    exc_info=True
+                )
             return self.response(
                 status.HTTP_200_OK,
                 InfoMessage.rideCancelledSuccessfully,

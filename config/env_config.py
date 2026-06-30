@@ -24,7 +24,7 @@ SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 DRIVER_FIREBASE_JSON = os.environ.get("DRIVER_FIREBASE_JSON")
 USER_FIREBASE_JSON = os.environ.get("USER_FIREBASE_JSON")
-
+DISPATCH_MODE = os.environ.get("DISPATCH_MODE", "inline")  # queue | inline
 
 ## WKHTMLOPDF details ##
 WKHTMLOPDF_PATH = os.environ.get("WKHTMLOPDF_PATH")

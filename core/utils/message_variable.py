@@ -43,7 +43,7 @@ class InfoMessage:
     enjoyRide = "Sit back and enjoy your journey."
     thankYou = "Your ride has been completed successfully."
     rideCompletedMsg = "Thank you for riding with us. We hope to see you again soon!"
-    cancelledMsg = "This ride has been cancelled. Please try booking again if needed."
+    cancelledMsg = "This ride has been cancelled."
     driverArrived = "Driver has arrived to your location."
     arrivedNow = "Arrived now."
     rideFound = "Ride found"
@@ -62,6 +62,11 @@ class InfoMessage:
     couponsFetched = "Available coupons fetched successfully!"
     reviewSubmitted = "Review submitted successfully!"
     rideStatusFetched = "Ride status fetched successfully!"
+    driverCancelledRide = (
+        "{driver_name} cancelled your booking. Please book another ride."
+    )
+    userCancelledRide = ("{user_name} has cancelled the ride.")
+    rideCancelledTitle  = "Ride Cancelled"
 
 class ErrorMessage:
     """This class represents a user error message."""

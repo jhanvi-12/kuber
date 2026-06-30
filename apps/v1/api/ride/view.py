@@ -190,7 +190,7 @@ async def ride_otp_verify_api(
 
 @riderouter.get("/current_ride")
 async def ride_status_api(
-    ride_request_id: str,
+    ride_id: str,
     db: AsyncSession = Depends(getdb),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2),
 ):
@@ -198,7 +198,7 @@ async def ride_status_api(
     Endpoint to fetch the ride status.
 
     Args:
-        ride_request_id (str): The ID of the ride request.
+        ride_id (str): The ID of the ride.
         db (AsyncSession): The database session.
 
     Returns:
@@ -206,6 +206,6 @@ async def ride_status_api(
     """
     current_user = JWTOAuth2().verify_access_token(authorize.credentials)
     response = await RideDetailService().fetch_ride_status_service(
-        db, current_user, ride_request_id
+        db, current_user, ride_id
     )
     return response

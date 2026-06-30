@@ -11,7 +11,7 @@ class RideResponse(Schema):
     """
 
     id = fields.Int()
-    # ride_uuid = fields.Str()
+    ride_uuid = fields.Str()
     ride_type = fields.Str()
     longitude = fields.Float()
     latitude = fields.Float()
@@ -22,9 +22,9 @@ class RideResponse(Schema):
     plate_number = fields.String(required=True)
     profile_image = fields.Url(required=False, allow_none=True)
     review = fields.Float(required=False, allow_none=True)
-    # vehicle_type = fields.String(required=True)
-    # vehicle_name = fields.String(required=True)
-    # duration = fields.Float(required=True)
+    vehicle_type = fields.String(required=True)
+    make = fields.String(required=True)
+    duration = fields.Float(required=True)
 
 
 class RideSchema(Schema):
@@ -47,6 +47,8 @@ class RideSchema(Schema):
     driver_rating = fields.Float(required=False, allow_none=True)
     discount_fare = fields.Float(required=False, allow_none=True)
     coupon_code = fields.Str(required=False, allow_none=True)
+    username = fields.Str(required=True)
+    mobile_number = fields.Str(required=True)
 
 class DriverRidesResponseSchema(Schema):
     """Schema for the driver rides"""

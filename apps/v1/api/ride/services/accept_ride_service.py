@@ -50,7 +50,7 @@ class RideAcceptService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                 )
 
-            if ride_req.get("status") != "Searching":
+            if ride_req.get("status") != "-1":
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotAvailable
                 )
@@ -116,10 +116,10 @@ class RideAcceptService(BaseResponseService):
             # Emit socket event
             data = jsonable_encoder(driver_data)
             data["plate_number"] = vehicle_data.plate_number
-            # data["vehicle_name"] = vehicle_data.make
-            # data["vehilce_type"] = vehicle_data.vehicle_type
-            # data["duration"] = ride.duration
-            # data["ride_uuid"] = ride.ride_uuid
+            data["make"] = vehicle_data.make
+            data["vehicle_type"] = vehicle_data.vehicle_type
+            data["ride_uuid"] = ride.ride_uuid
+
             result = RideResponse().dump(data)
             # Emitting the book_ride_status event with accepted status
             await RideSocketEmitter.book_ride_status(

@@ -4,6 +4,23 @@ This module defines the Marshmallow schema for serializing and deserializing use
 
 from marshmallow import Schema, fields
 
+class LoginResponse(Schema):
+    """
+
+    Args:
+        Schema (_type_): _description_
+    """
+    id = fields.Int(required=True)
+    full_name = fields.Str(required=True)
+    email = fields.Email(required=True)
+    mobile = fields.Str(required=True)
+    profile_image = fields.Str(required=True)
+    user_type = fields.Str(required=True)
+    vehicle_type = fields.Str(required=True)
+    device_token = fields.Str(required=True)
+    review = fields.Float(required=True)
+    is_docs_verified = fields.Int(required=True)
+
 class RegisterResSchema(Schema):
     """
     Schema for serializing and deserializing user data.
