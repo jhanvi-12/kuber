@@ -71,6 +71,7 @@ class RideSocketEmitter:
         driver_data: dict = None,
         extra_data: dict = None,
         user_id: int = None,
+        ride_uuid: str = None,
     ):
         """
         Unified socket event for all ride booking statuses.
@@ -113,6 +114,12 @@ class RideSocketEmitter:
                 "message": InfoMessage.cancelledMsg,
                 "include_driver": False,
             },
+            RideStatusEnum.NEARBY.value: {
+                "status": RideStatusEnum.NEARBY.value,
+                "title": InfoMessage.rideNearby,
+                "message": InfoMessage.driverNearby,
+                "include_driver": False,
+            },
         }
 
         config = status_config.get(ride_status)
@@ -132,6 +139,7 @@ class RideSocketEmitter:
         data = {
             "ride_request_id": ride_request_id,
             "ride_id": ride_id,
+            "ride_uuid": ride_uuid,
             "title": config.get("title"),
             "message": config.get("message"),
             "status": config.get("status"),

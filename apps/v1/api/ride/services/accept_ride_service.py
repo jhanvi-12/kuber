@@ -118,7 +118,6 @@ class RideAcceptService(BaseResponseService):
             data["plate_number"] = vehicle_data.plate_number
             data["make"] = vehicle_data.make
             data["vehicle_type"] = vehicle_data.vehicle_type
-            data["ride_uuid"] = ride.ride_uuid
 
             result = RideResponse().dump(data)
             # Emitting the book_ride_status event with accepted status
@@ -127,7 +126,8 @@ class RideAcceptService(BaseResponseService):
                 ride_request_id=ride_request_id,
                 ride_id=ride.id,
                 driver_data=result,
-                user_id=ride.user_id
+                user_id=ride.user_id,
+                ride_uuid=ride.ride_uuid
             )
 
             try:

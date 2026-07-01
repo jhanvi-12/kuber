@@ -7,7 +7,7 @@ from config.redis_config import redis_client
 import logging
 from core.utils import constant_variable
 
-DRIVER_ALIVE_TTL = 120       # 2 min — renewed by heartbeat
+DRIVER_ALIVE_TTL = 21600     # 6 hour — renewed by heartbeat
 DRIVER_META_TTL = 1800       # half an hour — auto cleanup if driver never logs out cleanly
 DRIVER_GEO_TTL = 1800        # half an hour — same
 # FCM registration tokens are JWT-length strings (typically 140+ chars).

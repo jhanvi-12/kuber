@@ -67,6 +67,8 @@ class InfoMessage:
     )
     userCancelledRide = ("{user_name} has cancelled the ride.")
     rideCancelledTitle  = "Ride Cancelled"
+    rideNearby = "Driver is nearby"
+    driverNearby = "A driver is nearby your location. Please be ready for pickup."
 
 class ErrorMessage:
     """This class represents a user error message."""
