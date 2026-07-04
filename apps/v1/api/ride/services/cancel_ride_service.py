@@ -102,7 +102,7 @@ class UserRideCancelService(BaseResponseService):
             await db.refresh(ride)
 
             await RideSocketEmitter.book_ride_status(
-                ride_status=update_status,
+                ride_status=ride.status,
                 ride_request_id=None,
                 ride_id=ride.id,
                 driver_data=None,
@@ -131,7 +131,9 @@ class UserRideCancelService(BaseResponseService):
                         recipient.device_token,
                         notification_message,
                         notification_title,
-                        None
+                        {
+                            "status": ride.status
+                        }
                     )
                     print(f" Notification sent successfully to user {recipient.id}")
 

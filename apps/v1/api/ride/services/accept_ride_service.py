@@ -16,9 +16,11 @@ from apps.v1.api.vehicle.models.model import Vehicle
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
 from apps.v1.api.ride.serializer import RideResponse
+from apps.v1.api.ride.services.book_ride_service import BookRideService
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from config import aws_config
 from config.redis_config import redis_client
+from core.redis_repo import RedisDriverRepo
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
 
@@ -120,22 +122,47 @@ class RideAcceptService(BaseResponseService):
             data["vehicle_type"] = vehicle_data.vehicle_type
 
             result = RideResponse().dump(data)
-            # Emitting the book_ride_status event with accepted status
+
+            socket_status = RideStatusEnum.ACCEPTED.value
+            driver_lat, driver_lng = await RedisDriverRepo.get_driver_location(
+                driver_id, vehicle_data.ride_type
+            )
+            if (driver_lat is None or driver_lng is None) and ride_req.get("ride_type"):
+                driver_lat, driver_lng = await RedisDriverRepo.get_driver_location(
+                    driver_id, ride_req["ride_type"]
+                )
+            if driver_lat is None or driver_lng is None:
+                driver_lat = driver_data.latitude
+                driver_lng = driver_data.longitude
+
+            if driver_lat is not None and driver_lng is not None:
+                driver_pickup_distance = BookRideService().calculate_distance(
+                    float(ride_req["pickup_latitude"]),
+                    float(ride_req["pickup_longitude"]),
+                    float(driver_lat),
+                    float(driver_lng),
+                )
+                if (
+                    constant.ACCEPT_NEARBY_MIN_KM
+                    <= driver_pickup_distance
+                    <= constant.ACCEPT_NEARBY_MAX_KM
+                ):
+                    socket_status = RideStatusEnum.NEARBY.value
+
             await RideSocketEmitter.book_ride_status(
-                ride_status=RideStatusEnum.ACCEPTED.value,
+                ride_status=socket_status,
                 ride_request_id=ride_request_id,
                 ride_id=ride.id,
                 driver_data=result,
                 user_id=ride.user_id,
-                ride_uuid=ride.ride_uuid
+                ride_uuid=ride.ride_uuid,
             )
-
             try:
                 await DriverFirebaseNotification().send_notification_to_drivers(
                     user_data.device_token,
                     InfoMessage.reqAccepted,
                     InfoMessage.driverHeading,
-                    None
+                    {"status": socket_status}
                 )
                 print(f" Notification sent successfully to user {user_data.id}")
 
