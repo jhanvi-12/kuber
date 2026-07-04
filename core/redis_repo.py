@@ -407,6 +407,19 @@ class RedisDriverRepo:
         await cls.refresh_heartbeat(driver_id)
 
     @classmethod
+    async def get_driver_location(cls, driver_id: int, ride_type: str):
+        """
+        Get driver's latest lat/lng from Redis geo index.
+        Updated via update_driver_status API and socket location events.
+        """
+        geo_key = cls._geo_key(ride_type)
+        positions = await redis_client.geopos(geo_key, str(driver_id))
+        if not positions or not positions[0]:
+            return None, None
+        lng, lat = positions[0]
+        return float(lat), float(lng)
+
+    @classmethod
     async def refresh_heartbeat(cls, driver_id: int):
         """
         Driver app calls this every ~60s to stay alive.

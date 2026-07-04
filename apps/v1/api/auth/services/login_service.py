@@ -10,8 +10,7 @@ Methods:
 """
 
 import uuid
-
-import uuid
+import json
 
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
@@ -32,6 +31,8 @@ from core.utils.token_authentication import JWTOAuth2
 from apps.v1.api.auth.models.model import Session
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.vehicle.models.model import Vehicle
+from apps.v1.api.auth.services.verify_otp_service import VerifyOtpService
+
 
 class LoginService(BaseResponseService):
     """This class represents the login service"""
@@ -51,7 +52,9 @@ class LoginService(BaseResponseService):
         try:
             body = body.dict()
             # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(db, body["email"], body.get("user_type"))
+            user_obj = await self.get_verified_user_by_email(
+                db, body["email"], body.get("user_type")
+            )
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
@@ -65,14 +68,13 @@ class LoginService(BaseResponseService):
             jti = str(uuid.uuid4())
             # Generate auth2 token
             token_data = {
-                    "user_id": user_obj.id,
-                    "jti": jti,
-                    "email": user_obj.email,
-                    "user_type": user_obj.user_type.value,
-                }
+                "user_id": user_obj.id,
+                "jti": jti,
+                "email": user_obj.email,
+                "user_type": user_obj.user_type.value,
+            }
 
             data = jsonable_encoder(user_obj)
-
             data.pop("password")
             data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
@@ -84,9 +86,27 @@ class LoginService(BaseResponseService):
                 plan_data = await PlansMethod(Plans).find_plan_by_driver_id(
                     db, user_obj.id
                 )
-                vehicle_obj = await UserAuthMethod(Vehicle).find_by_driver_id(db, user_obj.id)
-                data["vehicle_type"] = vehicle_obj.vehicle_type if vehicle_obj is not None else None
-                data["plan_details"] = jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
+                vehicle_obj = await UserAuthMethod(Vehicle).find_by_driver_id(
+                    db, user_obj.id
+                )
+                data["vehicle_type"] = (
+                    vehicle_obj.vehicle_type if vehicle_obj is not None else None
+                )
+                data["plan_details"] = (
+                    jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
+                )
+            else:
+                # TODO: Handling temporary for customer user type, need to purchase sendgrid key for sending email to customer user type.
+                response = await VerifyOtpService().create_otp_code_service(
+                    db, user_obj.email
+                )
+                if response.status_code != status.HTTP_200_OK:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST,
+                        ErrorMessage.generalTryAgain,
+                    )
+                code = json.loads(response.body).get("data")["otp_code"]
+                data["code"] = code
 
             token = JWTOAuth2().encode_access_token(token_data)
             data["access_token"] = (
@@ -96,10 +116,14 @@ class LoginService(BaseResponseService):
             # Check if user/driver already has an active session
             if user_obj.user_type == UserTypeEnum.DRIVER.value:
                 user_id, driver_id = None, user_obj.id
-                existing_session = await UserAuthMethod(Session).find_active_session_by_id(db, user_id, driver_id)
+                existing_session = await UserAuthMethod(
+                    Session
+                ).find_active_session_by_id(db, user_id, driver_id)
             else:
                 user_id, driver_id = user_obj.id, None
-                existing_session = await UserAuthMethod(Session).find_active_session_by_id(db, user_id, driver_id)
+                existing_session = await UserAuthMethod(
+                    Session
+                ).find_active_session_by_id(db, user_id, driver_id)
 
             if existing_session:
                 return self.response(
@@ -155,10 +179,10 @@ class LoginService(BaseResponseService):
 
             # Generate auth2 token
             token_data = {
-                    "user_id": admin_obj.id,
-                    "email": admin_obj.email,
-                    "user_type": "admin",
-                }
+                "user_id": admin_obj.id,
+                "email": admin_obj.email,
+                "user_type": "admin",
+            }
 
             data = jsonable_encoder(admin_obj)
             data.pop("password")
@@ -191,7 +215,9 @@ class LoginService(BaseResponseService):
         try:
             body = body.dict()
             # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(db, current_user["email"], current_user["user_type"])
+            user_obj = await self.get_verified_user_by_email(
+                db, current_user["email"], current_user["user_type"]
+            )
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
@@ -204,17 +230,15 @@ class LoginService(BaseResponseService):
                 User
                 if current_user["user_type"] == UserTypeEnum.CUSTOMER.value
                 else Driver
-            ).create_or_find_device_token(db, user_obj.id, device_token, platform, device_id)
+            ).create_or_find_device_token(
+                db, user_obj.id, device_token, platform, device_id
+            )
 
             if not res:
                 return self.response(
-                    status.HTTP_400_BAD_REQUEST,
-                    "Error while generating Device token"
+                    status.HTTP_400_BAD_REQUEST, "Error while generating Device token"
                 )
-            return self.response(
-                status.HTTP_200_OK,
-                InfoMessage.deviceTokenGenerated
-            )
+            return self.response(status.HTTP_200_OK, InfoMessage.deviceTokenGenerated)
 
         except Exception:
             return self.response(
@@ -238,7 +262,9 @@ class LoginService(BaseResponseService):
             user_obj = await UserAuthMethod(Driver).find_by_email(db, email)
         return user_obj
 
-    async def get_verified_user_by_email(self, db: AsyncSession, email: str, user_type: str):
+    async def get_verified_user_by_email(
+        self, db: AsyncSession, email: str, user_type: str
+    ):
         """
         Finds a user by email.
 
@@ -250,5 +276,7 @@ class LoginService(BaseResponseService):
             User: The user object if found, else None.
         """
         user_type_model = Driver if user_type == "driver" else User
-        user_obj = await UserAuthMethod(user_type_model).find_verified_email_user(db, email)
+        user_obj = await UserAuthMethod(user_type_model).find_verified_email_user(
+            db, email
+        )
         return user_obj

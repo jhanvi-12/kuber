@@ -62,11 +62,9 @@ class InfoMessage:
     couponsFetched = "Available coupons fetched successfully!"
     reviewSubmitted = "Review submitted successfully!"
     rideStatusFetched = "Ride status fetched successfully!"
-    driverCancelledRide = (
-        "{driver_name} cancelled your booking. Please book another ride."
-    )
-    userCancelledRide = ("{user_name} has cancelled the ride.")
-    rideCancelledTitle  = "Ride Cancelled"
+    driverCancelledRide = "{driver_name} cancelled this ride. Don't worry, we're matching you with a new one right away."
+    rideCancelledTitle = "Your ride was cancelled"
+    userCancelledRide = "{user_name} cancelled this ride. Don't worry, we're matching you with a new driver."
     rideNearby = "Driver is nearby"
     driverNearby = "A driver is nearby your location. Please be ready for pickup."
 

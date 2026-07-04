@@ -118,7 +118,7 @@ class RideSocketEmitter:
                 "status": RideStatusEnum.NEARBY.value,
                 "title": InfoMessage.rideNearby,
                 "message": InfoMessage.driverNearby,
-                "include_driver": False,
+                "include_driver": True,
             },
         }
 
