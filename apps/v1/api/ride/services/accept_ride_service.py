@@ -23,6 +23,7 @@ from config.redis_config import redis_client
 from core.redis_repo import RedisDriverRepo
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
+from apps.v1.api.driver.services.driver_search_service import DriverSearchService
 
 
 class RideAcceptService(BaseResponseService):
@@ -55,6 +56,19 @@ class RideAcceptService(BaseResponseService):
             if ride_req.get("status") != "-1":
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotAvailable
+                )
+
+            if await RedisDriverRepo.is_driver_busy(driver_id):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.driverOnActiveRide
+                )
+
+            active_ride = await UserAuthMethod(Ride).find_active_ride_by_driver_id(
+                db, driver_id
+            )
+            if active_ride:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.driverOnActiveRide
                 )
 
             # Atomic lock (only one driver wins)
@@ -115,6 +129,16 @@ class RideAcceptService(BaseResponseService):
                 }
             )
 
+            driver_data.is_available = constant.STATUS_FALSE
+            db.add(driver_data)
+            await db.commit()
+
+            await RedisDriverRepo.mark_driver_busy(
+                driver_id=driver_id,
+                ride_id=ride.id,
+                ride_type=vehicle_data.ride_type,
+            )
+
             # Emit socket event
             data = jsonable_encoder(driver_data)
             data["plate_number"] = vehicle_data.plate_number
@@ -124,6 +148,8 @@ class RideAcceptService(BaseResponseService):
             result = RideResponse().dump(data)
 
             socket_status = RideStatusEnum.ACCEPTED.value
+            body_msg = InfoMessage.driverHeading
+            title_msg = InfoMessage.reqAccepted
             driver_lat, driver_lng = await RedisDriverRepo.get_driver_location(
                 driver_id, vehicle_data.ride_type
             )
@@ -148,6 +174,9 @@ class RideAcceptService(BaseResponseService):
                     <= constant.ACCEPT_NEARBY_MAX_KM
                 ):
                     socket_status = RideStatusEnum.NEARBY.value
+                    body_msg = InfoMessage.driverNearby
+                    title_msg = InfoMessage.rideNearby
+
 
             await RideSocketEmitter.book_ride_status(
                 ride_status=socket_status,
@@ -158,11 +187,12 @@ class RideAcceptService(BaseResponseService):
                 ride_uuid=ride.ride_uuid,
             )
             try:
+                serialized_payload = DriverSearchService.serialize_user_data({"status": socket_status})
                 await DriverFirebaseNotification().send_notification_to_drivers(
                     user_data.device_token,
-                    InfoMessage.reqAccepted,
-                    InfoMessage.driverHeading,
-                    {"status": socket_status}
+                    title_msg,
+                    body_msg,
+                    serialized_payload
                 )
                 print(f" Notification sent successfully to user {user_data.id}")
 
@@ -182,6 +212,7 @@ class RideAcceptService(BaseResponseService):
             response["ride_fare"] = ride.ride_fare
             response["ride_id"] = ride.id
             response["ride_uuid"] = ride.ride_uuid
+            response["status"] = ride.status
             return self.response(status.HTTP_200_OK, InfoMessage.rideAcceptedSuccessfully, response)
 
         except Exception:

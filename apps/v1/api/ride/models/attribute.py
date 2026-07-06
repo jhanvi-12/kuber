@@ -14,5 +14,3 @@ class RideStatusEnum(int, Enum):
     COMPLETED = 4
     CANCELLED = 5
     NEARBY = 6
-
-

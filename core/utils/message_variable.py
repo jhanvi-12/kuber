@@ -115,6 +115,7 @@ class ErrorMessage:
     rideNotAccepted = "Ride has not been accepted by any driver yet."
     invalidRideStatus =  "Invalid status transition."
     rideAlreadyAssigned = "Ride already assigned to another driver."
+    driverOnActiveRide = "You already have an active ride. Complete it before accepting a new one."
     rideNotFound = "Ride not found with the provided ID."
     rideNotFoundWithAccept = "Ride is not in an accepted state."
     rideAlreadyCompletedOrCancelled = "Ride has already been completed or cancelled."

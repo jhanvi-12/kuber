@@ -121,6 +121,7 @@ class BookRideService(BaseResponseService):
             )
             # Emit searching state
             user_data = {
+                "status": RideStatusEnum.INITIAL.value,
                 "ride_request_id": ride_request_id,
                 "pickup_latitude": body["pickup_latitude"],
                 "pickup_longitude": body["pickup_longitude"],

@@ -309,6 +309,66 @@ class RedisDriverRepo:
     def _alive_key(driver_id: int) -> str:
         return f"driver:alive:{driver_id}"
 
+    @staticmethod
+    def _busy_key(driver_id: int) -> str:
+        return f"driver:busy:{driver_id}"
+
+    @classmethod
+    async def is_driver_busy(cls, driver_id: int) -> bool:
+        """This method is used to check if driver is busy or not"""
+        return await redis_client.exists(cls._busy_key(driver_id)) == 1
+
+    @classmethod
+    async def get_active_ride_id(cls, driver_id: int) -> int | None:
+        """This method is used to get the active ride ID for a busy driver"""
+        ride_id = await redis_client.get(cls._busy_key(driver_id))
+        return int(ride_id) if ride_id else None
+
+    @classmethod
+    async def mark_driver_busy(cls, driver_id: int, ride_id: int, ride_type: str):
+        """Block driver from new ride notifications until ride completes."""
+        meta_key = cls._meta_key(driver_id)
+        geo_key = cls._geo_key(ride_type)
+        async with redis_client.pipeline(transaction=False) as pipe:
+            pipe.set(cls._busy_key(driver_id), str(ride_id), ex=DRIVER_ALIVE_TTL)
+            pipe.hset(
+                meta_key,
+                mapping={"is_available": "0", "active_ride_id": str(ride_id)},
+            )
+            pipe.zrem(geo_key, str(driver_id))
+            await pipe.execute()
+        LOG.info(f"Driver {driver_id} marked busy on ride={ride_id}")
+
+    @classmethod
+    async def release_driver_busy(
+        cls,
+        driver_id: int,
+        ride_type: str,
+        lat: float = None,
+        lng: float = None,
+        device_token: str = None,
+    ):
+        """Restore driver to dispatch pool after ride completes or is cancelled."""
+        await redis_client.delete(cls._busy_key(driver_id))
+        meta_key = cls._meta_key(driver_id)
+        await redis_client.hset(
+            meta_key,
+            mapping={"is_available": "1", "active_ride_id": ""},
+        )
+        if lat is not None and lng is not None:
+            await cls._set_online(driver_id, ride_type, lat, lng, device_token)
+        LOG.info(f"Driver {driver_id} released from busy state")
+
+    @classmethod
+    async def sync_busy_from_db(
+        cls,
+        driver_id: int,
+        ride_id: int,
+        ride_type: str,
+    ):
+        """Reconcile Redis busy state when DB shows an active ride."""
+        await cls.mark_driver_busy(driver_id, ride_id, ride_type)
+
     @classmethod
     async def update_driver_status(
         cls,
@@ -349,26 +409,30 @@ class RedisDriverRepo:
         meta_key = cls._meta_key(driver_id)
         alive_key = cls._alive_key(driver_id)
         geo_key = cls._geo_key(ride_type)
+        is_busy = await redis_client.exists(cls._busy_key(driver_id))
 
         async with redis_client.pipeline(transaction=False) as pipe:
-            # 1. Add to geo index
-            pipe.geoadd(geo_key, (lng, lat, str(driver_id)))
-
-            # 2. Set meta fields — never overwrite a valid token with None/empty
             pipe.hset(meta_key, "ride_type", str(ride_type))
             if device_token:
                 pipe.hset(meta_key, "device_token", str(device_token))
-            pipe.hset(meta_key, "is_available", "1")
-
-            # 3. Set TTL on meta so it auto-cleans if driver never logs out
+            if is_busy:
+                pipe.hset(meta_key, "is_available", "0")
+            else:
+                pipe.geoadd(geo_key, (lng, lat, str(driver_id)))
+                pipe.hset(meta_key, "is_available", "1")
             pipe.expire(meta_key, DRIVER_META_TTL)
-
-            # 4. Alive key with TTL (heartbeat must renew this)
             pipe.setex(alive_key, DRIVER_ALIVE_TTL, "1")
-
             await pipe.execute()
 
-        LOG.info(f"Driver {driver_id} online | ride_type={ride_type} | lat={lat} lng={lng}")
+        if is_busy:
+            LOG.info(
+                f"Driver {driver_id} heartbeat refreshed while busy | "
+                f"ride_type={ride_type}"
+            )
+        else:
+            LOG.info(
+                f"Driver {driver_id} online | ride_type={ride_type} | lat={lat} lng={lng}"
+            )
 
     @classmethod
     async def _set_offline(cls, driver_id: int, ride_type: str):

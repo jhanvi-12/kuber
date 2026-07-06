@@ -59,13 +59,15 @@ class SignUpService(BaseResponseService):
                     )
 
                 data = json.loads(user_data.body)["data"]
+                code = self.generate_otp_code()
                 user_obj = User(
                     full_name=body["full_name"],
                     email=body["email"],
                     password=data["hashed_password"],
                     user_type=user_type.value,
                     mobile=data["contact"],
-                    profile_image=data["profile_image"]
+                    profile_image=data["profile_image"],
+                    code=code
                 )
 
             else:

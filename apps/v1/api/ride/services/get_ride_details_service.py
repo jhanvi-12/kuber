@@ -20,6 +20,7 @@ from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
 from config.redis_config import redis_client
+from core.redis_repo import RedisDriverRepo
 from core.utils import constant_variable as constant
 from core.utils.db_method import DataBaseMethod
 from core.utils.message_variable import *
@@ -27,6 +28,23 @@ from core.utils.message_variable import *
 
 class RideDetailService(BaseResponseService):
     """This class is used to get the ride details"""
+
+    async def _release_driver_for_new_rides(
+        self,
+        db: AsyncSession,
+        driver: Driver,
+        vehicle_data: Vehicle,
+    ):
+        driver.is_available = constant.STATUS_TRUE
+        db.add(driver)
+        await db.commit()
+        await RedisDriverRepo.release_driver_busy(
+            driver_id=driver.id,
+            ride_type=vehicle_data.ride_type,
+            lat=driver.latitude,
+            lng=driver.longitude,
+            device_token=driver.device_token,
+        )
 
     async def get_ride_details(self, db: AsyncSession, ride_id: int, driver_id: int):
         """Method to fetch the ride details using ride_id
@@ -83,10 +101,17 @@ class RideDetailService(BaseResponseService):
             driver_id = current_user["user_id"]
             ride_id = body.get("ride_id")
             ride_status = body.get("status")
-            ride = await UserAuthMethod(Ride).find_by_ride_id_status(
-                db, ride_id, RideStatusEnum.ACCEPTED.value
-            )
+            ride = await UserAuthMethod(Ride).find_by_id(db, ride_id)
             if not ride:
+                return self.response(
+                    status.HTTP_404_NOT_FOUND, ErrorMessage.rideNotFound
+                )
+
+            if ride.status not in (
+                RideStatusEnum.ACCEPTED.value,
+                RideStatusEnum.REACHED.value,
+                RideStatusEnum.STARTED.value,
+            ):
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.rideNotFoundWithAccept
                 )
@@ -121,6 +146,11 @@ class RideDetailService(BaseResponseService):
 
             message = InfoMessage.driverStatusUpdated
             update_status = status_mapping.get(ride_status)
+            if not update_status:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidRideStatus
+                )
+
             if update_status["status"] == RideStatusEnum.COMPLETED.value:
                 if ride.coupon_code == constant.COUPON_KUBERSAVER:
                     if ride.ride_type == constant.CITY_RIDE:
@@ -149,8 +179,8 @@ class RideDetailService(BaseResponseService):
                     # ride.is_commuter = constant.STATUS_FALSE
                     ride.is_city = constant.STATUS_FALSE
                     ride.is_comfort = constant.STATUS_FALSE
-                ride.status = update_status["status"]
-                message = update_status["message"]
+            ride.status = update_status["status"]
+            message = update_status["message"]
 
             db.add(ride)
             await db.commit()
@@ -162,6 +192,10 @@ class RideDetailService(BaseResponseService):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleNotFound
                 )
+
+            if update_status["status"] == RideStatusEnum.COMPLETED.value:
+                await self._release_driver_for_new_rides(db, driver, vehicle_data)
+
             # emit the book_ride_status api to update the reached status
             response = jsonable_encoder(driver)
             response["plate_number"] = vehicle_data.plate_number
