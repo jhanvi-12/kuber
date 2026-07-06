@@ -126,18 +126,18 @@ async def connect(sid, environ):
 
     await sio.save_session(sid, {
         "token": f"Bearer {token}",
-        "user_id": user_id,
+        "user_id": int(user_id),
         "user_type": user_type,
     })
     print(f"Client connected | user_id={user_id} user_type={user_type}")
 
     if user_type == UserTypeEnum.CUSTOMER.value:
-        await sio.enter_room(sid, f"user:{user_id}")
-        print(f"{sid} auto-joined user:{user_id}")
+        await sio.enter_room(sid, f"user:{int(user_id)}")
+        print(f"{sid} auto-joined user:{int(user_id)}")
 
     if user_type == UserTypeEnum.DRIVER.value:
-        await sio.enter_room(sid, f"driver:{user_id}")
-        print(f"{sid} auto-joined driver:{user_id}")
+        await sio.enter_room(sid, f"driver:{int(user_id)}")
+        print(f"{sid} auto-joined driver:{int(user_id)}")
 
     await sio.emit(
         "response",
@@ -227,7 +227,8 @@ async def driver_location_update(sid, data):
                 "driver_id": driver_id,
                 "lat": lat,
                 "lng": lng
-            }
+            },
+            room=f"driver:{int(driver_id)}",
         )
 
     except Exception as e:

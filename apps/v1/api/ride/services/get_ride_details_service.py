@@ -35,14 +35,25 @@ class RideDetailService(BaseResponseService):
         driver: Driver,
         vehicle_data: Vehicle,
     ):
+        lat, lng = await RedisDriverRepo.get_driver_location(
+            driver.id, vehicle_data.ride_type
+        )
+        if lat is None or lng is None:
+            lat = driver.latitude
+            lng = driver.longitude
+
         driver.is_available = constant.STATUS_TRUE
+        if lat is not None and lng is not None:
+            driver.latitude = lat
+            driver.longitude = lng
         db.add(driver)
         await db.commit()
+
         await RedisDriverRepo.release_driver_busy(
             driver_id=driver.id,
             ride_type=vehicle_data.ride_type,
-            lat=driver.latitude,
-            lng=driver.longitude,
+            lat=lat,
+            lng=lng,
             device_token=driver.device_token,
         )
 

@@ -56,7 +56,7 @@ class RedisRideRepo:
 
         async with redis_client.pipeline() as pipe:
             # Store ride request
-            await pipe.hmset(key, mapping=data)
+            await pipe.hmset(key, data)
 
             # Safety TTL (auto cleanup after 10 minutes)
             await pipe.expire(key, 600)
@@ -114,7 +114,7 @@ class RedisRideRepo:
             status: New status (e.g., 'SEARCHING', 'ACCEPTED', 'CANCELLED')
         """
         key = f"ride:search:{ride_request_id}"
-        await redis_client.hset(key, "status", status)
+        await redis_client.hmset(key, {"status": status})
 
     @classmethod
     async def get_status(cls, ride_request_id: str) -> str:
@@ -272,11 +272,11 @@ class RedisRideRepo:
 
         await redis_client.hmset(
             f"ride:search:{ride_request_id}",
-            mapping={
+            {
                 "status": RideStatusEnum.ACCEPTED.value,
                 "driver_id": driver_id,
-                "accepted_at": int(time.time())
-            }
+                "accepted_at": int(time.time()),
+            },
         )
         return True
 
@@ -329,12 +329,17 @@ class RedisDriverRepo:
         """Block driver from new ride notifications until ride completes."""
         meta_key = cls._meta_key(driver_id)
         geo_key = cls._geo_key(ride_type)
+
+        meta_update = {"is_available": "0", "active_ride_id": str(ride_id)}
+        positions = await redis_client.geopos(geo_key, str(driver_id))
+        if positions and positions[0]:
+            lng, lat = positions[0]
+            meta_update["latitude"] = str(lat)
+            meta_update["longitude"] = str(lng)
+
         async with redis_client.pipeline(transaction=False) as pipe:
             pipe.set(cls._busy_key(driver_id), str(ride_id), ex=DRIVER_ALIVE_TTL)
-            pipe.hset(
-                meta_key,
-                mapping={"is_available": "0", "active_ride_id": str(ride_id)},
-            )
+            pipe.hmset(meta_key, meta_update)
             pipe.zrem(geo_key, str(driver_id))
             await pipe.execute()
         LOG.info(f"Driver {driver_id} marked busy on ride={ride_id}")
@@ -351,9 +356,9 @@ class RedisDriverRepo:
         """Restore driver to dispatch pool after ride completes or is cancelled."""
         await redis_client.delete(cls._busy_key(driver_id))
         meta_key = cls._meta_key(driver_id)
-        await redis_client.hset(
+        await redis_client.hmset(
             meta_key,
-            mapping={"is_available": "1", "active_ride_id": ""},
+            {"is_available": "1", "active_ride_id": ""},
         )
         if lat is not None and lng is not None:
             await cls._set_online(driver_id, ride_type, lat, lng, device_token)
@@ -411,15 +416,19 @@ class RedisDriverRepo:
         geo_key = cls._geo_key(ride_type)
         is_busy = await redis_client.exists(cls._busy_key(driver_id))
 
+        meta_mapping = {
+            "ride_type": str(ride_type),
+            "is_available": "0" if is_busy else "1",
+            "latitude": str(lat),
+            "longitude": str(lng),
+        }
+        if device_token:
+            meta_mapping["device_token"] = str(device_token)
+
         async with redis_client.pipeline(transaction=False) as pipe:
-            pipe.hset(meta_key, "ride_type", str(ride_type))
-            if device_token:
-                pipe.hset(meta_key, "device_token", str(device_token))
-            if is_busy:
-                pipe.hset(meta_key, "is_available", "0")
-            else:
+            pipe.hmset(meta_key, meta_mapping)
+            if not is_busy:
                 pipe.geoadd(geo_key, (lng, lat, str(driver_id)))
-                pipe.hset(meta_key, "is_available", "1")
             pipe.expire(meta_key, DRIVER_META_TTL)
             pipe.setex(alive_key, DRIVER_ALIVE_TTL, "1")
             await pipe.execute()
@@ -445,7 +454,7 @@ class RedisDriverRepo:
             pipe.zrem(geo_key, str(driver_id))
 
             # 2. Mark unavailable in meta
-            pipe.hset(meta_key, "is_available", "0")
+            pipe.hmset(meta_key, {"is_available": "0"})
 
             # 3. Set short TTL on meta (cleanup after 5 min of being offline)
             pipe.expire(meta_key, 10)
@@ -473,15 +482,20 @@ class RedisDriverRepo:
     @classmethod
     async def get_driver_location(cls, driver_id: int, ride_type: str):
         """
-        Get driver's latest lat/lng from Redis geo index.
+        Get driver's latest lat/lng from Redis geo index or driver meta.
         Updated via update_driver_status API and socket location events.
         """
         geo_key = cls._geo_key(ride_type)
         positions = await redis_client.geopos(geo_key, str(driver_id))
-        if not positions or not positions[0]:
-            return None, None
-        lng, lat = positions[0]
-        return float(lat), float(lng)
+        if positions and positions[0]:
+            lng, lat = positions[0]
+            return float(lat), float(lng)
+
+        meta_key = cls._meta_key(driver_id)
+        lat, lng = await redis_client.hmget(meta_key, "latitude", "longitude")
+        if lat and lng:
+            return float(lat), float(lng)
+        return None, None
 
     @classmethod
     async def refresh_heartbeat(cls, driver_id: int):

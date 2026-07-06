@@ -68,31 +68,31 @@ class UpdateDriverStatusService(BaseResponseService):
             await db.commit()
 
             # Sync Redis
-            if active_ride:
-                if is_available:
-                    await RedisDriverRepo.sync_busy_from_db(
-                        driver_id=driver_id,
-                        ride_id=active_ride.id,
-                        ride_type=vehicle_obj.ride_type,
-                    )
-                else:
-                    await RedisDriverRepo.update_driver_status(
-                        driver_id=driver_id,
-                        ride_type=vehicle_obj.ride_type,
-                        is_available=False,
-                        lat=lat,
-                        lng=lng,
-                        device_token=driver_obj.device_token,
-                    )
-            else:
-                await RedisDriverRepo.update_driver_status(
-                    driver_id=driver_id,
-                    ride_type=vehicle_obj.ride_type,
-                    is_available=is_available,
-                    lat=lat,
-                    lng=lng,
-                    device_token=driver_obj.device_token,
-                )
+            # if active_ride:
+            #     if is_available:
+            #         await RedisDriverRepo.sync_busy_from_db(
+            #             driver_id=driver_id,
+            #             ride_id=active_ride.id,
+            #             ride_type=vehicle_obj.ride_type,
+            #         )
+            #     else:
+            #         await RedisDriverRepo.update_driver_status(
+            #             driver_id=driver_id,
+            #             ride_type=vehicle_obj.ride_type,
+            #             is_available=False,
+            #             lat=lat,
+            #             lng=lng,
+            #             device_token=driver_obj.device_token,
+            #         )
+            # else:
+            await RedisDriverRepo.update_driver_status(
+                driver_id=driver_id,
+                ride_type=vehicle_obj.ride_type,
+                is_available=is_available,
+                lat=lat,
+                lng=lng,
+                device_token=driver_obj.device_token,
+            )
 
             return self.response(
                 status.HTTP_200_OK,
