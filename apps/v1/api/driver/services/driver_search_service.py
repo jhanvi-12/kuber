@@ -154,6 +154,33 @@ class DriverSearchService:
             return False
 
     @staticmethod
+    async def _emit_search_failed(ride_request_id: str, user_id: int):
+        """Mark ride search as failed and notify the booking customer."""
+        status = await RedisRideRepo.get_status(ride_request_id)
+        if status != "-1":
+            LOG.info(
+                "Search failed skipped for ride=%s (status=%s)",
+                ride_request_id,
+                status,
+            )
+            return
+
+        await RedisRideRepo.update_status(
+            ride_request_id, RideStatusEnum.FAILED.value
+        )
+        await RideSocketEmitter.book_ride_status(
+            ride_status=RideStatusEnum.FAILED.value,
+            ride_request_id=ride_request_id,
+            ride_id=ride_request_id,
+            user_id=user_id,
+        )
+        LOG.info(
+            "Emitted book_ride_status FAILED for ride=%s user=%s",
+            ride_request_id,
+            user_id,
+        )
+
+    @staticmethod
     async def _cleanup_ride(ride_request_id: str):
         """Set TTL on all ride search keys. Always awaited."""
         try:
@@ -210,18 +237,12 @@ class DriverSearchService:
 
                 # Max waves exceeded → mark failed
                 if wave > DriverSearchService.MAX_WAVES:
-                    LOG.warning(f"Max waves reached for ride={ride_request_id}. stats={stats}")
-                    # Re-check before marking failed (driver may have just accepted)
-                    status = await RedisRideRepo.get_status(ride_request_id)
-                    if status == "-1":
-                        await RedisRideRepo.update_status(
-                            ride_request_id, RideStatusEnum.FAILED.value
-                        )
-                        await RideSocketEmitter.book_ride_status(
-                            ride_status=RideStatusEnum.FAILED.value,
-                            ride_request_id=ride_request_id,
-                            user_id=user_id,
-                        )
+                    LOG.warning(
+                        f"Max waves reached for ride={ride_request_id}. stats={stats}"
+                    )
+                    await DriverSearchService._emit_search_failed(
+                        ride_request_id, user_id
+                    )
                     return
 
                 radius = DriverSearchService.WAVE_RADIUS.get(wave, 5)
@@ -236,6 +257,11 @@ class DriverSearchService:
                         f"Wave {wave}: no eligible drivers in {radius}km. "
                         f"Moving to next wave in {DriverSearchService.WAVE_DELAY}s"
                     )
+                    if wave >= DriverSearchService.MAX_WAVES:
+                        await DriverSearchService._emit_search_failed(
+                            ride_request_id, user_id
+                        )
+                        return
                     await RedisRideRepo.increment_wave(ride_request_id)
                     await asyncio.sleep(DriverSearchService.WAVE_DELAY)
                     continue
@@ -281,25 +307,14 @@ class DriverSearchService:
 
         except asyncio.CancelledError:
             LOG.warning(f"start_wave cancelled for ride={ride_request_id}")
+            await DriverSearchService._emit_search_failed(ride_request_id, user_id)
 
         except Exception as e:
             LOG.error(
                 f"Critical error in start_wave ride={ride_request_id}: {e}",
                 exc_info=True
             )
-            try:
-                status = await RedisRideRepo.get_status(ride_request_id)
-                if status == "-1":
-                    await RedisRideRepo.update_status(
-                        ride_request_id, RideStatusEnum.FAILED.value
-                    )
-                    await RideSocketEmitter.book_ride_status(
-                        ride_status=RideStatusEnum.FAILED.value,
-                        ride_request_id=ride_request_id,
-                        user_id=user_id,
-                    )
-            except Exception as inner:
-                LOG.error(f"Failure handler error: {inner}")
+            await DriverSearchService._emit_search_failed(ride_request_id, user_id)
 
         finally:
             # Only expire search keys once dispatch has finished (accepted/failed/cancelled).
