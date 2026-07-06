@@ -23,7 +23,9 @@ class DriverSearchService:
     WAVE_RADIUS = {1: 1, 2: 3, 3: 5}
 
     @staticmethod
-    def _serialize_user_data(user_data: Dict[str, Any]) -> Dict[str, str]:
+    def serialize_user_data(user_data: Dict[str, Any]) -> Dict[str, str]:
+        """This method serializes user data to ensure all values are
+          strings for Firebase notification."""
         serialized = {}
         for key, value in (user_data or {}).items():
             try:
@@ -80,9 +82,23 @@ class DriverSearchService:
             if not alive_ids:
                 return []
 
-            # --- Gate 2: Availability + device token ---
+            # --- Gate 2: Not on an active ride ---
             async with redis_client.pipeline(transaction=False) as pipe:
                 for driver_id in alive_ids:
+                    pipe.exists(f"driver:busy:{driver_id}")
+                busy_results = await pipe.execute()
+
+            available_ids = [
+                did for did, busy in zip(alive_ids, busy_results) if not busy
+            ]
+            LOG.info(f"Not busy: {len(available_ids)}/{len(alive_ids)}")
+
+            if not available_ids:
+                return []
+
+            # --- Gate 3: Availability + device token ---
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for driver_id in available_ids:
                     pipe.hmget(
                         f"driver:meta:{driver_id}",
                         "is_available", "device_token"
@@ -90,7 +106,7 @@ class DriverSearchService:
                 meta_results = await pipe.execute()
 
             eligible = []
-            for driver_id, meta in zip(alive_ids, meta_results):
+            for driver_id, meta in zip(available_ids, meta_results):
                 is_available, device_token = meta[0], meta[1]
 
                 if str(is_available or "0") != "1":
@@ -107,7 +123,7 @@ class DriverSearchService:
                 })
 
             LOG.info(
-                f"Eligible: {len(eligible)}/{len(alive_ids)} | "
+                f"Eligible: {len(eligible)}/{len(available_ids)} | "
                 f"radius={radius}km | ride_type={ride_type}"
             )
             return eligible
@@ -171,7 +187,7 @@ class DriverSearchService:
             return
 
         # Serialize once before the loop
-        serialized_payload = DriverSearchService._serialize_user_data(user_data)
+        serialized_payload = DriverSearchService.serialize_user_data(user_data)
 
         stats = {"found": 0, "sent": 0, "failed": 0, "skipped": 0}
 

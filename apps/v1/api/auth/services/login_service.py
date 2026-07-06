@@ -95,18 +95,6 @@ class LoginService(BaseResponseService):
                 data["plan_details"] = (
                     jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
                 )
-            else:
-                # TODO: Handling temporary for customer user type, need to purchase sendgrid key for sending email to customer user type.
-                response = await VerifyOtpService().create_otp_code_service(
-                    db, user_obj.email
-                )
-                if response.status_code != status.HTTP_200_OK:
-                    return self.response(
-                        status.HTTP_400_BAD_REQUEST,
-                        ErrorMessage.generalTryAgain,
-                    )
-                code = json.loads(response.body).get("data")["otp_code"]
-                data["code"] = code
 
             token = JWTOAuth2().encode_access_token(token_data)
             data["access_token"] = (

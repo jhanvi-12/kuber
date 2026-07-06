@@ -161,6 +161,21 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_active_ride_by_driver_id(self, db: AsyncSession, driver_id: int):
+        """Fetch driver's in-progress ride (accepted, reached, or started)."""
+        async with db:
+            stmt = select(self.model).where(
+                self.model.driver_id == driver_id,
+                self.model.status.in_([
+                    RideStatusEnum.ACCEPTED.value,
+                    RideStatusEnum.REACHED.value,
+                    RideStatusEnum.STARTED.value,
+                ]),
+                self.model.deleted_at == constant.STATUS_NULL,
+            )
+            result = await db.execute(stmt)
+            return result.scalars().first()
+
     async def find_ride_by_user_id(
             self, db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime
             ):

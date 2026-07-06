@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.ride.models.model import Ride
 from apps.v1.api.vehicle.models.model import Vehicle
 from core.redis_repo import RedisDriverRepo
 from core.utils import constant_variable as constant
@@ -50,22 +51,48 @@ class UpdateDriverStatusService(BaseResponseService):
             if not vehicle_obj:
                 return self.response(status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleNotFound)
 
+            active_ride = await UserAuthMethod(Ride).find_active_ride_by_driver_id(
+                db, driver_id
+            )
+
             # Update DB
-            driver_obj.is_available = constant.STATUS_ONE if is_available else constant.STATUS_ZERO
+            if active_ride:
+                driver_obj.is_available = constant.STATUS_ZERO
+            else:
+                driver_obj.is_available = (
+                    constant.STATUS_ONE if is_available else constant.STATUS_ZERO
+                )
             driver_obj.latitude = lat
             driver_obj.longitude = lng
             db.add(driver_obj)
             await db.commit()
 
             # Sync Redis
-            await RedisDriverRepo.update_driver_status(
-                driver_id=driver_id,
-                ride_type=vehicle_obj.ride_type,
-                is_available=is_available,
-                lat=lat,
-                lng=lng,
-                device_token=driver_obj.device_token,
-            )
+            if active_ride:
+                if is_available:
+                    await RedisDriverRepo.sync_busy_from_db(
+                        driver_id=driver_id,
+                        ride_id=active_ride.id,
+                        ride_type=vehicle_obj.ride_type,
+                    )
+                else:
+                    await RedisDriverRepo.update_driver_status(
+                        driver_id=driver_id,
+                        ride_type=vehicle_obj.ride_type,
+                        is_available=False,
+                        lat=lat,
+                        lng=lng,
+                        device_token=driver_obj.device_token,
+                    )
+            else:
+                await RedisDriverRepo.update_driver_status(
+                    driver_id=driver_id,
+                    ride_type=vehicle_obj.ride_type,
+                    is_available=is_available,
+                    lat=lat,
+                    lng=lng,
+                    device_token=driver_obj.device_token,
+                )
 
             return self.response(
                 status.HTTP_200_OK,

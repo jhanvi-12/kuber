@@ -17,6 +17,9 @@ from apps.v1.api.driver.services.driver_firebase_notification import \
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from apps.v1.api.auth.models.model import User
 from apps.v1.api.driver.models.model import Driver
+from apps.v1.api.driver.services.driver_search_service import DriverSearchService
+from apps.v1.api.vehicle.models.model import Vehicle
+from core.redis_repo import RedisDriverRepo
 
 class UserRideCancelService(BaseResponseService):
     """This class is used to define the ride acceptance service methods."""
@@ -101,6 +104,25 @@ class UserRideCancelService(BaseResponseService):
             await db.commit()
             await db.refresh(ride)
 
+            if ride.driver_id:
+                assigned_driver = await UserAuthMethod(Driver).find_by_id(
+                    db, ride.driver_id
+                )
+                vehicle = await UserAuthMethod(Vehicle).find_by_driver_id(
+                    db, ride.driver_id
+                )
+                if assigned_driver and vehicle:
+                    assigned_driver.is_available = constant.STATUS_TRUE
+                    db.add(assigned_driver)
+                    await db.commit()
+                    await RedisDriverRepo.release_driver_busy(
+                        driver_id=ride.driver_id,
+                        ride_type=vehicle.ride_type,
+                        lat=assigned_driver.latitude,
+                        lng=assigned_driver.longitude,
+                        device_token=assigned_driver.device_token,
+                    )
+
             await RideSocketEmitter.book_ride_status(
                 ride_status=ride.status,
                 ride_request_id=None,
@@ -127,13 +149,12 @@ class UserRideCancelService(BaseResponseService):
                 )
 
                 if recipient and recipient.device_token:
+                    serialized_payload = DriverSearchService.serialize_user_data({"status": ride.status})
                     await DriverFirebaseNotification().send_notification_to_drivers(
                         recipient.device_token,
                         notification_message,
                         notification_title,
-                        {
-                            "status": ride.status
-                        }
+                        serialized_payload
                     )
                     print(f" Notification sent successfully to user {recipient.id}")
 
