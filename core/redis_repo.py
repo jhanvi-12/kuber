@@ -35,37 +35,31 @@ class RedisRideRepo:
         key = f"ride:search:{ride_request_id}"
 
         data = {
-            "status": "-1", # Searching
-            "user_id": user_id,
-            "pickup_latitude": payload["pickup_latitude"],
-            "pickup_longitude": payload["pickup_longitude"],
-            "pickup_address": payload["pickup_address"],
-            "destination_latitude": payload["destination_latitude"],
-            "destination_longitude": payload["destination_longitude"],
-            "destination_address": payload["destination_address"],
-            "ride_type": payload["ride_type"],
-            "ride_fare": payload["ride_fare"],
-            "discount_fare": payload["discount_fare"],
-            "total_fare": payload["total_fare"],
-            "distance": payload["distance"],
-            "duration": payload["duration"],
-            "coupon_code": payload.get("coupon_code", None),
-            "wave": 1,
-            "created_at": int(time.time()),
+            "status": "-1",  # Searching
+            "user_id": str(user_id),
+            "pickup_latitude": str(payload["pickup_latitude"]),
+            "pickup_longitude": str(payload["pickup_longitude"]),
+            "pickup_address": str(payload["pickup_address"]),
+            "destination_latitude": str(payload["destination_latitude"]),
+            "destination_longitude": str(payload["destination_longitude"]),
+            "destination_address": str(payload["destination_address"]),
+            "ride_type": str(payload["ride_type"]),
+            "ride_fare": str(payload["ride_fare"]),
+            "discount_fare": str(payload["discount_fare"]),
+            "total_fare": str(payload["total_fare"]),
+            "distance": str(payload["distance"]),
+            "duration": str(payload["duration"]),
+            "coupon_code": str(payload.get("coupon_code") or ""),
+            "wave": "1",
+            "created_at": str(int(time.time())),
         }
 
-        async with redis_client.pipeline() as pipe:
-            # Store ride request
-            await pipe.hmset(key, data)
-
-            # Safety TTL (auto cleanup after 10 minutes)
-            await pipe.expire(key, 600)
-
-            # Cleanup related keys (if any)
-            await pipe.delete(f"ride:lock:{ride_request_id}")
-            await pipe.delete(f"ride:candidates:{ride_request_id}")
-            await pipe.delete(f"ride:notified:{ride_request_id}")
-
+        async with redis_client.pipeline(transaction=False) as pipe:
+            pipe.hmset(key, data)
+            pipe.expire(key, 600)
+            pipe.delete(f"ride:lock:{ride_request_id}")
+            pipe.delete(f"ride:candidates:{ride_request_id}")
+            pipe.delete(f"ride:notified:{ride_request_id}")
             await pipe.execute()
 
     @classmethod
@@ -273,9 +267,9 @@ class RedisRideRepo:
         await redis_client.hmset(
             f"ride:search:{ride_request_id}",
             {
-                "status": RideStatusEnum.ACCEPTED.value,
-                "driver_id": driver_id,
-                "accepted_at": int(time.time()),
+                "status": str(RideStatusEnum.ACCEPTED.value),
+                "driver_id": str(driver_id),
+                "accepted_at": str(int(time.time())),
             },
         )
         return True

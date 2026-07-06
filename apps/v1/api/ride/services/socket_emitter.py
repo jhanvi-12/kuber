@@ -18,7 +18,7 @@ class RideSocketEmitter:
 
     @staticmethod
     def _user_room(user_id: int) -> str:
-        return f"user:{int(user_id)}"
+        return f"user:{user_id}"
 
     @staticmethod
     def _ride_room(ride_request_id: str) -> str:
@@ -43,7 +43,6 @@ class RideSocketEmitter:
             return
         payload = {"event": event, "data": data, "room": room}
         await redis_client.publish(SOCKET_CHANNEL, json.dumps(payload))
-        LOG.info("Published socket event '%s' to room '%s'", event, room)
 
     @staticmethod
     async def ride_searching(ride_request_id: str, user_id: int = None):
