@@ -122,11 +122,11 @@ class RideAcceptService(BaseResponseService):
             # Update Redis state
             await redis_client.hmset(
                 redis_key,
-                mapping={
+                {
                     "status": RideStatusEnum.ACCEPTED.value,
                     "driver_id": driver_id,
-                    "ride_id": ride.id
-                }
+                    "ride_id": ride.id,
+                },
             )
 
             driver_data.is_available = constant.STATUS_FALSE

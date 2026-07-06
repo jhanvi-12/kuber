@@ -112,14 +112,24 @@ class UserRideCancelService(BaseResponseService):
                     db, ride.driver_id
                 )
                 if assigned_driver and vehicle:
+                    lat, lng = await RedisDriverRepo.get_driver_location(
+                        ride.driver_id, vehicle.ride_type
+                    )
+                    if lat is None or lng is None:
+                        lat = assigned_driver.latitude
+                        lng = assigned_driver.longitude
+
                     assigned_driver.is_available = constant.STATUS_TRUE
+                    if lat is not None and lng is not None:
+                        assigned_driver.latitude = lat
+                        assigned_driver.longitude = lng
                     db.add(assigned_driver)
                     await db.commit()
                     await RedisDriverRepo.release_driver_busy(
                         driver_id=ride.driver_id,
                         ride_type=vehicle.ride_type,
-                        lat=assigned_driver.latitude,
-                        lng=assigned_driver.longitude,
+                        lat=lat,
+                        lng=lng,
                         device_token=assigned_driver.device_token,
                     )
 
@@ -205,10 +215,10 @@ class UserRideCancelService(BaseResponseService):
             # Update Redis state
             await redis_client.hmset(
                 redis_key,
-                mapping={
+                {
                     "status": "Cancelled",
-                    "ride_request_id": ride_request_id
-                }
+                    "ride_request_id": ride_request_id,
+                },
             )
 
             return self.response(
