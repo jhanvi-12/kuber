@@ -46,6 +46,11 @@ class SignUpService(BaseResponseService):
         """
         try:
             ValidationMethods().validate_password(body["password"])
+            if not ValidationMethods().validate_number(body["mobile"], num_type="mobile"):
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidMobileNumber
+                )
+
             if user_type.value == UserTypeEnum.CUSTOMER.value:
                 # Check body's Email already exist
                 file_path = f"{aws_config.AWS_USER_PROFILE_PATH}{uuid.uuid4()}"

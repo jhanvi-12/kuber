@@ -81,40 +81,34 @@ class ValidationMethods:
         min_value=constant_variable.STATUS_NULL,
         max_value=constant_variable.STATUS_NULL,
     ):
-        # If not mandatory and the field value is empty or constant_variable.STATUS_NULL, it's valid
         if fvalue:
             try:
-                # Convert the value to float or int based on the type specified (num_type)
+                if num_type == "mobile":
+                    fvalue = str(fvalue).strip()
+
+                    # Must be exactly 10 digits, starting with 6-9 (valid Indian mobile prefixes)
+                    if not re.fullmatch(r'[6-9]\d{9}', fvalue):
+                        return constant_variable.STATUS_FALSE
+
+                    return constant_variable.STATUS_TRUE
+
                 if num_type == "int":
                     number = int(fvalue)
                 elif num_type == "float":
                     number = float(fvalue)
                 else:
-                    # Default to trying to convert to float first
                     number = float(fvalue)
                     if number.is_integer():
-                        number = int(
-                            number
-                        )  # Convert to int if it's an integer-like float
+                        number = int(number)
 
-                # Check if the number is within the specified range
-                if (
-                    min_value is not None
-                    and number < min_value
-                ):
+                if min_value is not None and number < min_value:
                     return constant_variable.STATUS_FALSE
-                if (
-                    max_value is not None
-                    and number > max_value
-                ):
+                if max_value is not None and number > max_value:
                     return constant_variable.STATUS_FALSE
 
-                return (
-                    constant_variable.STATUS_TRUE
-                )  # Number is valid if all checks pass
+                return constant_variable.STATUS_TRUE
 
             except (ValueError, TypeError):
-                # If conversion fails or an invalid type is provided
                 return constant_variable.STATUS_FALSE
         return constant_variable.STATUS_TRUE
 
