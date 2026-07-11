@@ -1,16 +1,16 @@
 """This module contains logout functionality."""
 
-from datetime import datetime
-
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.v1.api.auth.models.method import UserAuthMethod
-from apps.v1.api.auth.models.model import Session
-from apps.v1.api.base_service import BaseResponseService
-from core.utils.token_authentication import JWTOAuth2
-from core.utils.message_variable import ErrorMessage, InfoMessage
 from apps.v1.api.auth.models.attribute import UserTypeEnum
+from apps.v1.api.auth.models.method import UserAuthMethod
+from apps.v1.api.auth.models.model import Session, User
+from apps.v1.api.base_service import BaseResponseService
+from core.utils import constant_variable as constant
+from core.utils.message_variable import ErrorMessage, InfoMessage
+from core.utils.token_authentication import JWTOAuth2
+
 
 class UserLogoutService(BaseResponseService):
     """Service class for retrieving user details."""
@@ -41,6 +41,12 @@ class UserLogoutService(BaseResponseService):
                 user_id, driver_id = None, current_user.get("user_id")
             else:
                 user_id, driver_id = current_user.get("user_id"), None
+                user = await UserAuthMethod(User).find_by_id(db, user_id)
+                if user:
+                    user.code = constant.STATUS_NULL
+                    db.add(user)
+                    await db.commit()
+
             session_obj = await UserAuthMethod(Session).find_by_session_id(
                 db, driver_id, user_id, jti
             )

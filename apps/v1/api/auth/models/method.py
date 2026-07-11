@@ -7,7 +7,6 @@ from sqlalchemy.future import select
 from apps.v1.api.ride.models.attribute import RideStatusEnum
 from core.utils import constant_variable as constant
 
-
 class UserAuthMethod:
     """This class defines methods to authenticate users."""
 
@@ -164,14 +163,18 @@ class UserAuthMethod:
     async def find_active_ride_by_driver_id(self, db: AsyncSession, driver_id: int):
         """Fetch driver's in-progress ride (accepted, reached, or started)."""
         async with db:
-            stmt = select(self.model).where(
-                self.model.driver_id == driver_id,
-                self.model.status.in_([
-                    RideStatusEnum.ACCEPTED.value,
-                    RideStatusEnum.REACHED.value,
-                    RideStatusEnum.STARTED.value,
-                ]),
-                self.model.deleted_at == constant.STATUS_NULL,
+            stmt = (
+                select(self.model)
+                .where(
+                    self.model.driver_id == driver_id,
+                    self.model.status.in_([
+                        RideStatusEnum.ACCEPTED.value,
+                        RideStatusEnum.REACHED.value,
+                        RideStatusEnum.STARTED.value,
+                    ]),
+                    self.model.deleted_at == constant.STATUS_NULL,
+                )
+                .order_by(self.model.created_at.desc())
             )
             result = await db.execute(stmt)
             return result.scalars().first()

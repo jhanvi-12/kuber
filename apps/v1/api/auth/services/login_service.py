@@ -119,6 +119,13 @@ class LoginService(BaseResponseService):
                     ErrorMessage.alreadyLoggedIn,
                 )
 
+            # Generate fresh ride code only after login succeeds (customer only)
+            if user_obj.user_type == UserTypeEnum.CUSTOMER.value:
+                new_code = self.generate_otp_code()
+                user_obj.code = new_code
+                db.add(user_obj)
+                data["code"] = new_code
+
             session = Session(
                 user_id=user_id,
                 driver_id=driver_id,

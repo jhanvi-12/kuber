@@ -105,7 +105,7 @@ class RideSocketEmitter:
             RideStatusEnum.COMPLETED.value: {
                 "status": RideStatusEnum.COMPLETED.value,
                 "title": InfoMessage.rideCompletedSuccess,
-                "message": InfoMessage.thankYou,
+                "message": InfoMessage.rideCompletedMsg,
                 "include_driver": False,
             },
             RideStatusEnum.CANCELLED.value: {

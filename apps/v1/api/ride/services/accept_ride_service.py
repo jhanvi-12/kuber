@@ -147,7 +147,6 @@ class RideAcceptService(BaseResponseService):
 
             result = RideResponse().dump(data)
 
-            socket_status = RideStatusEnum.ACCEPTED.value
             body_msg = InfoMessage.driverHeading
             title_msg = InfoMessage.reqAccepted
             driver_lat, driver_lng = await RedisDriverRepo.get_driver_location(
@@ -173,13 +172,12 @@ class RideAcceptService(BaseResponseService):
                     <= driver_pickup_distance
                     <= constant.ACCEPT_NEARBY_MAX_KM
                 ):
-                    socket_status = RideStatusEnum.NEARBY.value
                     body_msg = InfoMessage.driverNearby
                     title_msg = InfoMessage.rideNearby
 
 
             await RideSocketEmitter.book_ride_status(
-                ride_status=socket_status,
+                ride_status=RideStatusEnum.ACCEPTED.value,
                 ride_request_id=ride_request_id,
                 ride_id=ride.id,
                 driver_data=result,
