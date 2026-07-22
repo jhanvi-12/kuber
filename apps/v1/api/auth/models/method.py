@@ -224,6 +224,7 @@ class UserAuthMethod:
                 self.model.deleted_at == constant.STATUS_NULL,
                 func.date(self.model.created_at) >= start_date.date(),
                 func.date(self.model.created_at) <= end_date.date(),
+                self.model.status.in_([RideStatusEnum.COMPLETED.value, RideStatusEnum.CANCELLED.value])
             ]
 
             # Query 1: rides in date range
