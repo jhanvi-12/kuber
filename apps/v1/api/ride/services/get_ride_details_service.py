@@ -24,7 +24,34 @@ from core.redis_repo import RedisDriverRepo
 from core.utils import constant_variable as constant
 from core.utils.db_method import DataBaseMethod
 from core.utils.message_variable import *
+from apps.v1.api.auth.models.attribute import UserTypeEnum
+from apps.v1.api.driver.services.driver_search_service import DriverSearchService
+from apps.v1.api.driver.services.driver_firebase_notification import DriverFirebaseNotification
 
+RIDE_STATUS_INFO = {
+    RideStatusEnum.ACCEPTED.value: {
+        "title": InfoMessage.reqAccepted,
+        "message": InfoMessage.driverHeading
+    },
+    RideStatusEnum.REACHED.value: {
+        "title": InfoMessage.driverArrived,
+        "message": InfoMessage.driverReachedSuccessfully
+    },
+    RideStatusEnum.STARTED.value: {
+        "title": InfoMessage.rideStarted,
+        "message": InfoMessage.enjoyRide
+    },
+    RideStatusEnum.COMPLETED.value: {
+        "title": InfoMessage.rideCompletedSuccess,
+        "message": InfoMessage.rideCompletedMsg
+    },
+    RideStatusEnum.CANCELLED.value: {
+        "status": RideStatusEnum.CANCELLED.value,
+        "title": InfoMessage.rideCancelledSuccessfully,
+        "message": InfoMessage.rideCancelled,
+        "include_driver": False,
+    },
+}
 
 class RideDetailService(BaseResponseService):
     """This class is used to get the ride details"""
@@ -140,6 +167,7 @@ class RideDetailService(BaseResponseService):
                     status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound
                 )
 
+            driver_data = jsonable_encoder(driver) if driver else None
             status_mapping = {
                 constant.STATUS_TWO: {
                     "status": RideStatusEnum.REACHED.value,
@@ -162,6 +190,7 @@ class RideDetailService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidRideStatus
                 )
 
+            user_data = await UserAuthMethod(User).find_by_id(db, ride.user_id)
             if update_status["status"] == RideStatusEnum.COMPLETED.value:
                 if ride.coupon_code == constant.COUPON_KUBERSAVER:
                     if ride.ride_type == constant.CITY_RIDE:
@@ -190,6 +219,7 @@ class RideDetailService(BaseResponseService):
                     # ride.is_commuter = constant.STATUS_FALSE
                     ride.is_city = constant.STATUS_FALSE
                     ride.is_comfort = constant.STATUS_FALSE
+
             ride.status = update_status["status"]
             message = update_status["message"]
 
@@ -219,6 +249,22 @@ class RideDetailService(BaseResponseService):
                 driver_data=data,
                 user_id=ride.user_id,
             )
+            if update_status["status"] == RideStatusEnum.REACHED.value:
+                try:
+                    serialized_payload = DriverSearchService.serialize_user_data({"status": RideStatusEnum.REACHED.value, "ride_request_id": constant.STATUS_NULL, "ride_id": ride.id, "driver_data": driver_data, "user_id": ride.user_id, "ride_uuid": ride.ride_uuid})
+                    await DriverFirebaseNotification().send_notification_to_drivers(
+                        user_data.device_token,
+                        InfoMessage.driverArrived,
+                        InfoMessage.driverReachedSuccessfully,
+                        serialized_payload
+                    )
+                    print(f" Notification sent successfully to user {user_data.id}")
+
+                except Exception as e:
+                    print(
+                        f" Failed to send notification to driver {driver_id}: {str(e)}",
+                        exc_info=True
+                    )
             return self.response(
                 status.HTTP_200_OK,
                 message,
@@ -395,7 +441,7 @@ class RideDetailService(BaseResponseService):
                 )
 
             serialized_data = DriverRidesResponseSchema().dump(ride_obj)
-            serialized_data["total_earnings"] = await DataBaseMethod(Ride).sum(
+            total_earnings = await DataBaseMethod(Ride).sum(
                 db,
                 "ride_fare",
                 {
@@ -403,6 +449,7 @@ class RideDetailService(BaseResponseService):
                     "status": RideStatusEnum.COMPLETED.value,
                 },
             )
+            serialized_data["total_earnings"] = round(total_earnings, 2) if total_earnings else 0
             serialized_data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
                 if driver_obj.profile_image
@@ -427,84 +474,90 @@ class RideDetailService(BaseResponseService):
             )
 
     async def fetch_ride_status_service(
-        self, db: AsyncSession, current_user: dict, ride_id: str
-    ):
-        """This method is used to fetch the ride status.
+            self, db: AsyncSession, current_user: dict, ride_id: str
+        ):
+            """This method is used to fetch the ride status.
 
-        Args:
-            db (AsyncSession): Db Session
-            current_user (dict): user for which need to fetch the ride status.
-            ride_id (str): ride id for which need to fetch the status.
+            Args:
+                db (AsyncSession): Db Session
+                current_user (dict): user for which need to fetch the ride status.
+                ride_id (str): ride id for which need to fetch the status.
 
-        """
-        try:
-            user_obj = await UserAuthMethod(User).find_by_id(
-                db, current_user.get("user_id")
-            )
-            if not user_obj:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
+            """
+            try:
+                if current_user.get("user_type") == UserTypeEnum.DRIVER.value:
+                    user_obj = await UserAuthMethod(Driver).find_by_id(
+                        db, current_user.get("user_id")
+                    )
+                else:
+                    user_obj = await UserAuthMethod(User).find_by_id(
+                        db, current_user.get("user_id")
+                    )
+                if not user_obj:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
+                    )
+                ride_key = f"ride:search:{ride_id}"
+
+                # Fetch ride request
+                ride_req = (
+                    await redis_client.hgetall(ride_key)
+                    if await redis_client.exists(ride_key)
+                    else jsonable_encoder(
+                        await UserAuthMethod(Ride).find_by_id(db, int(ride_id))
+                    )
                 )
-            ride_key = f"ride:search:{ride_id}"
+                if not ride_req:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
+                    )
 
-            # Fetch ride request
-            ride_req = (
-                await redis_client.hgetall(ride_key)
-                if await redis_client.exists(ride_key)
-                else jsonable_encoder(
-                    await UserAuthMethod(Ride).find_by_id(db, int(ride_id))
-                )
-            )
+                # if int(ride_req.get("user_id")) != current_user.get("user_id"):
+                #     return self.response(
+                #         status.HTTP_403_FORBIDDEN, ErrorMessage.notAuthorized
+                #     )
 
-            if not ride_req:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
-                )
+                status_value = ride_req.get("status")
+                status_info = RIDE_STATUS_INFO.get(status_value, {"title": "Ride Update", "message": ""})
 
-            if int(ride_req.get("user_id")) != current_user.get("user_id"):
-                return self.response(
-                    status.HTTP_403_FORBIDDEN, ErrorMessage.notAuthorized
-                )
-
-            data = RideSchema().dump(
-                {
-                    "id": ride_id,
-                    "ride_uuid": ride_req.get("ride_uuid"),
-                    "distance": ride_req.get("distance"),
-                    "duration": ride_req.get("duration"),
-                    "status": ride_req.get("status"),
-                    "pickup_address": ride_req.get("pickup_address"),
-                    "destination_address": ride_req.get("destination_address"),
-                    "ride_fare": ride_req.get("ride_fare"),
-                    "username": user_obj.full_name,
-                    "mobile_number": user_obj.mobile,
+                data = {
+                    "ride_request_id": ride_req.get("ride_uuid"),
+                    "ride_id": int(ride_id),
+                    "title": status_info["title"],
+                    "message": status_info["message"],
+                    "status": status_value,
                 }
-            )
-            if ride_req.get("status") in [
-                RideStatusEnum.ACCEPTED.value,
-                RideStatusEnum.REACHED.value,
-                RideStatusEnum.STARTED.value,
-            ]:
-                driver_obj = await UserAuthMethod(Driver).find_by_id(
-                    db, int(ride_req.get("driver_id"))
-                )
-                if driver_obj:
-                    data["driver"] = {
-                        "full_name": driver_obj.full_name,
-                        "mobile": driver_obj.mobile,
-                        "profile_image": (
-                            f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
-                            if driver_obj.profile_image is not None
-                            else constant.STATUS_NULL
-                        ),
-                        "review": driver_obj.review,
-                    }
-            return self.response(
-                status.HTTP_200_OK, InfoMessage.rideStatusFetched, data
-            )
 
-        except Exception:
-            return self.response(
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-                ErrorMessage.generalTryAgain,
-            )
+                if ride_req.get("status") in [
+                    RideStatusEnum.ACCEPTED.value,
+                    RideStatusEnum.REACHED.value,
+                    RideStatusEnum.STARTED.value,
+                ]:
+                    driver_obj = await UserAuthMethod(Driver).find_by_id(
+                        db, int(ride_req.get("driver_id"))
+                    )
+                    if driver_obj:
+                        driver_location = await RedisDriverRepo.get_driver_location(driver_obj.id, ride_req.get("ride_type"))
+                        data["driver"] = {
+                            "id": driver_obj.id,
+                            "longitude": driver_location[0] if driver_location else None,
+                            "latitude": driver_location[1] if driver_location else None,
+                            "mobile": driver_obj.mobile,
+                            "full_name": driver_obj.full_name,
+                            "email": driver_obj.email,
+                            "profile_image": (
+                                f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
+                                if driver_obj.profile_image is not None
+                                else None
+                            ),
+                        }
+
+                return self.response(
+                    status.HTTP_200_OK, InfoMessage.rideStatusFetched, data
+                )
+
+            except Exception:
+                return self.response(
+                    status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    ErrorMessage.generalTryAgain,
+                )

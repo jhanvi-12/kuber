@@ -111,7 +111,7 @@ class RideSocketEmitter:
             RideStatusEnum.CANCELLED.value: {
                 "status": RideStatusEnum.CANCELLED.value,
                 "title": InfoMessage.rideCancelledSuccessfully,
-                "message": InfoMessage.cancelledMsg,
+                "message": InfoMessage.rideCancelled,
                 "include_driver": False,
             },
             RideStatusEnum.NEARBY.value: {

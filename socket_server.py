@@ -187,7 +187,7 @@ async def get_authenticated_user(sid):
 @sio.on("driver_location_update")
 async def driver_location_update(sid, data):
     """
-    Driver sends live location updates every 3–5 seconds
+    Driver sends live location updates every 3 to 5 seconds
     """
     try:
         # Get authenticated driver_id from socket session
@@ -197,7 +197,12 @@ async def driver_location_update(sid, data):
         driver_id = driver_data["user_id"]
 
         # Extract & validate payload
-        data = json.loads(data)
+        # Socket.IO may deliver data as a dict (already parsed) or as a JSON string
+        if isinstance(data, (str, bytes, bytearray)):
+            data = json.loads(data)
+        elif not isinstance(data, dict):
+            return  # unexpected payload type, silently ignore
+
         lat = data.get("lat")
         lng = data.get("lng")
         ride_type = data.get("ride_type")
@@ -229,9 +234,11 @@ async def driver_location_update(sid, data):
                 "lng": lng
             }
         )
-
+        print(
+            f"driver_location_update Successfully emitted 'driver_location' driver_id={driver_id}  lat={lat}  lng={lng}"
+        )
     except Exception as e:
-        # Log only — never crash socket server
+        # Log only never crash socket server
         print("driver_location_update error:", str(e))
 
 @sio.on("join_room")

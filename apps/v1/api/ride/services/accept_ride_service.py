@@ -185,7 +185,7 @@ class RideAcceptService(BaseResponseService):
                 ride_uuid=ride.ride_uuid,
             )
             try:
-                serialized_payload = DriverSearchService.serialize_user_data({"status": socket_status})
+                serialized_payload = DriverSearchService.serialize_user_data({"status": RideStatusEnum.ACCEPTED.value, "ride_request_id": ride_request_id, "ride_id": ride.id, "driver_data": result, "user_id": ride.user_id, "ride_uuid": ride.ride_uuid})
                 await DriverFirebaseNotification().send_notification_to_drivers(
                     user_data.device_token,
                     title_msg,
