@@ -9,6 +9,7 @@ class InfoMessage:
     userListRetrieved = "Successfully retrieved the list of users!"
     loginSuccess = "Login successful!"
     logoutSuccess = "Logout successful!"
+    sessionCleared = "Active session cleared successfully. You can log in now."
     passwordChanged = "Password changed successfully!"
     verificationSent = "Verification email sent successfully!"
     operationCompleted = "Operation completed successfully!"
@@ -141,3 +142,4 @@ class ErrorMessage:
     cannotReviewIncompleteRide = "You cannot review a ride that is not completed."
     reviewAlreadySubmitted = "You have already submitted a review for this ride."
     alreadyLoggedIn = "You are already logged in on another device. Please logout from your previous device first."
+    noActiveSession = "No active session found for this account."
