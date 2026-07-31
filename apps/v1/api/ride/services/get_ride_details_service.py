@@ -511,12 +511,6 @@ class RideDetailService(BaseResponseService):
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                     )
-
-                # if int(ride_req.get("user_id")) != current_user.get("user_id"):
-                #     return self.response(
-                #         status.HTTP_403_FORBIDDEN, ErrorMessage.notAuthorized
-                #     )
-
                 status_value = ride_req.get("status")
                 status_info = RIDE_STATUS_INFO.get(status_value, {"title": "Ride Update", "message": ""})
 
@@ -536,6 +530,9 @@ class RideDetailService(BaseResponseService):
                     driver_obj = await UserAuthMethod(Driver).find_by_id(
                         db, int(ride_req.get("driver_id"))
                     )
+                    veh_obj = await UserAuthMethod(Vehicle).find_by_driver_id(
+                        db, int(ride_req.get("driver_id"))
+                    )
                     if driver_obj:
                         driver_location = await RedisDriverRepo.get_driver_location(driver_obj.id, ride_req.get("ride_type"))
                         data["driver"] = {
@@ -550,6 +547,10 @@ class RideDetailService(BaseResponseService):
                                 if driver_obj.profile_image is not None
                                 else None
                             ),
+                            "plate_number": veh_obj.plate_number if veh_obj else None,
+                            "make": veh_obj.make if veh_obj else None,
+                            "vehicle_type": veh_obj.vehicle_type if veh_obj else None,
+                            "review": driver_obj.review,
                         }
 
                 return self.response(

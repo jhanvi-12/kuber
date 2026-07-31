@@ -121,6 +121,25 @@ async def logout_api(
     return response
 
 
+@authrouter.post("/clear_session")
+async def clear_session_api(
+    body: schema.LoginSchema,
+    db: AsyncSession = Depends(getdb),
+):
+    """
+    Clears active login session for customer/driver so they can log in again.
+
+    Args:
+        body (LoginSchema): The request body containing email, password, and user_type.
+        db (AsyncSession): The database session.
+
+    Returns:
+        StandardResponse: The response object with status and message.
+    """
+    response = await UserLogoutService().clear_session_service(db, body)
+    return response
+
+
 @authrouter.post("/forgot_password")
 async def forgot_password_api(
     body: schema.ForgotPasswordSchema,

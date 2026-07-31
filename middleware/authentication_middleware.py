@@ -52,6 +52,7 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
             "/v1/auth/register",
             "/v1/auth/login",
             "/v1/auth/admin/login",
+            "/v1/auth/clear_session",
             "/v1/auth/otp_request",
             "/v1/auth/otp_verify",
             "/v1/auth/forgot_password",
