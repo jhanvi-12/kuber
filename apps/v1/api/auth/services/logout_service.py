@@ -119,6 +119,7 @@ class UserLogoutService(BaseResponseService):
                 )
 
             await db.delete(session_obj)
+            await db.commit()
 
             if user_type == UserTypeEnum.CUSTOMER.value:
                 user = await UserAuthMethod(User).find_by_id(db, user_obj.id)
