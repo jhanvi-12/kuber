@@ -92,6 +92,9 @@ class LoginService(BaseResponseService):
                 data["vehicle_type"] = (
                     vehicle_obj.vehicle_type if vehicle_obj is not None else None
                 )
+                data["ride_type"] = (
+                    vehicle_obj.ride_type if vehicle_obj is not None else None
+                )
                 data["plan_details"] = (
                     jsonable_encoder(plan_data) if plan_data else constant.STATUS_NULL
                 )

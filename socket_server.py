@@ -225,15 +225,21 @@ async def driver_location_update(sid, data):
             lng,
             device_token,
         )
-
-        await sio.emit(
-            "driver_location",
-            {
-                "driver_id": driver_id,
-                "lat": lat,
-                "lng": lng
-            }
+        await RedisDriverRepo.update_driver_location(
+            driver_id, ride_type, lat, lng, device_token,
         )
+
+        # NEW look up if this driver currently has an active ride
+        active_ride_id = await redis_client.get(f"driver:busy:{driver_id}")
+
+        if active_ride_id:
+            # Only emit to the customer on THIS specific ride
+            room_name = f"ride:{active_ride_id}"
+            await sio.emit(
+                "driver_location",
+                {"driver_id": driver_id, "lat": lat, "lng": lng},
+                room=room_name,
+            )
         print(
             f"driver_location_update Successfully emitted 'driver_location' driver_id={driver_id}  lat={lat}  lng={lng}"
         )
@@ -289,44 +295,6 @@ async def join_room(sid, data):
         {"room": room_name, "ride_request_id": ride_request_id},
         room=sid,
     )
-
-# 3rd event
-@sio.event
-async def cancel_ride(sid, data):
-    """Handle driver or user cancel event."""
-    print(f"Cancelled Ride event called: {data}")
-    try:
-        # Call backend API to update DB
-        session = await sio.get_session(sid)
-        token = session.get("token")
-
-        response = send_request(
-            "POST",
-            f"{backend_url}user/ride/cancel",
-            {"Authorization": token},
-            data=data,
-        )
-
-        if response.status_code != 200:
-            error_message = response.json().get(
-                "detail", "Failed to cancel ride status"
-            )
-            await sio.emit("error", {"message": error_message}, room=sid)
-
-        data = response.json()
-        session = await sio.get_session(sid)
-        user_id = session.get("user_id")
-        target_room = f"user:{user_id}" if user_id else sid
-        await sio.emit(
-            "ride_cancelled",
-            {"data": data},
-            room=target_room,
-        )
-
-    except Exception as e:
-        print(f"Error: {e}")
-        await sio.emit("error", {"message": ErrorMessage.generalTryAgain}, room=sid)
-
 
 async def start_background_tasks(app):
     """Function to start the background tasks."""
