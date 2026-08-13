@@ -273,6 +273,8 @@ class UserAuthMethod:
             if search_query:
                 count_stmt = count_stmt.where(self.model.full_name.ilike(f"%{search_query}%"))
 
+            # Order by latest first (most recently created record first)
+            stmt = stmt.order_by(self.model.created_at.desc())
             # Apply pagination
             stmt = stmt.offset(offset).limit(page_limit)
 
@@ -307,3 +309,14 @@ class UserAuthMethod:
                 )
             result = await db.execute(stmt)
             return result.scalars().first()
+
+    async def count_users_by_type(self, db: AsyncSession, user_type: str):
+        """This function will return the count of users by user type"""
+        async with db:  # Ensure the session context
+            stmt = select(func.count()).select_from(self.model).where(
+                self.model.user_type == user_type,
+                self.model.deleted_at == constant.STATUS_NULL
+            )
+            result = await db.execute(stmt)
+            return result.scalar_one()
+

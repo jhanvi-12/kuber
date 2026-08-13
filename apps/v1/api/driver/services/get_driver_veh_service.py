@@ -15,8 +15,10 @@ from apps.v1.api.vehicle.models.model import Vehicle
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from config import aws_config
 from apps.v1.api.ride.serializer import DriverListResponseSchema
+from apps.v1.api.driver.serializer import DriverDetailDocsSchema
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
 from core.utils import constant_variable as constant
+from apps.v1.api.auth.models.model import User
 
 
 class GetDriverService(BaseResponseService):
@@ -116,6 +118,8 @@ class GetDriverService(BaseResponseService):
                     driver_veh_obj.ride_type if driver_veh_obj is not None else None
                 )
 
+            customers_count = await UserAuthMethod(User).count_users_by_type(db, UserTypeEnum.CUSTOMER.value)
+            data["total_customers"] = customers_count
             return self.response(status.HTTP_200_OK, InfoMessage.driversFetched, data)
 
         except Exception:
@@ -199,6 +203,55 @@ class GetDriverService(BaseResponseService):
             data.pop("device_token", None)
 
             return self.response(status.HTTP_200_OK, InfoMessage.driverStatusUpdated, data)
+
+        except Exception:
+            await db.rollback()
+            return self.response(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ErrorMessage.generalTryAgain
+            )
+
+    async def fetch_driver_details_service(self, db: AsyncSession, driver_id: int, current_user):
+        """Fetches the details of the current driver."""
+        try:
+            admin_id = current_user.get("user_id")
+            admin_obj = await UserAuthMethod(Admin).find_by_id(db, admin_id)
+            if not admin_obj:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.adminNotFound
+                )
+            driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
+            if not driver_obj:
+                return self.response(status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound)
+
+            data = jsonable_encoder(driver_obj)
+            data["license_front_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.license_front_image}"
+                if driver_obj.license_front_image is not None
+                else None
+            )
+            data["license_back_image"] = (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.license_back_image}"
+                if driver_obj.license_back_image is not None
+                else None
+            )
+            vehicle_obj = await VehicleMethod(Vehicle).find_by_driver_id(db, driver_id)
+            if vehicle_obj:
+                data["ride_type"] = vehicle_obj.ride_type
+                data["vehicle_type"] = vehicle_obj.vehicle_type
+                data["vehicle_image"] = (
+                    f"{aws_config.AWS_BASE_URL}{vehicle_obj.vehicle_image}"
+                    if vehicle_obj.vehicle_image is not None
+                    else None
+                )
+                data["vehicle_insurance_image"] = (
+                    f"{aws_config.AWS_BASE_URL}{vehicle_obj.vehicle_insurance_image}"
+                    if vehicle_obj.vehicle_insurance_image is not None
+                    else None
+                )
+            response = DriverDetailDocsSchema().dump(data)
+
+            return self.response(status.HTTP_200_OK, InfoMessage.driverDetailsFetched, response)
 
         except Exception:
             await db.rollback()

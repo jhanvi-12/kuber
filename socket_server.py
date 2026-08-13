@@ -238,7 +238,7 @@ async def driver_location_update(sid, data):
             await sio.emit(
                 "driver_location",
                 {"driver_id": driver_id, "lat": lat, "lng": lng},
-                room=room_name,
+                # room=room_name,
             )
         print(
             f"driver_location_update Successfully emitted 'driver_location' driver_id={driver_id}  lat={lat}  lng={lng}"
