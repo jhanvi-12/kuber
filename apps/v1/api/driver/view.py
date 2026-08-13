@@ -247,6 +247,22 @@ async def drivers_list_api(
     )
     return response
 
+@driverrouter.get("/details")
+async def driver_details_api(
+    driver_id: int,
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2)
+):
+    """API endpoint to fetch the driver details"""
+
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await GetDriverService().fetch_driver_details_service(
+        db,
+        driver_id,
+        current_user
+    )
+    return response
+
 @driverrouter.post("/approve/reject")
 async def driver_approve_reject_api_by_admin(
     body: schema.DriverStatusSchema,

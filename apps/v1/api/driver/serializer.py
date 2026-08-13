@@ -28,3 +28,21 @@ class DriverVehicleDocumentSchema(Schema):
     vehicle_image = fields.Str(attribute="vehicle.vehicle_image")
     vehicle_insurance_image = fields.Str(attribute="vehicle.vehicle_insurance_image")
     # vehicle_insurance_expiration_date = fields.DateTime(attribute="vehicle.vehicle_insurance_expiration_date")
+
+
+class DriverDetailDocsSchema(Schema):
+    """This class is used to serialize the driver vehicle document."""
+    # Driver Fields
+    id = fields.Int()
+    full_name = fields.Str()
+    email = fields.Str()
+    mobile = fields.Str()
+    license_front_image = fields.Str()
+    license_back_image = fields.Str()
+    rc_image = fields.Str()
+
+    # Vehicle Fields
+    ride_type = fields.Str()
+    vehicle_type = fields.Str()
+    vehicle_image = fields.Str()
+    vehicle_insurance_image = fields.Str()
