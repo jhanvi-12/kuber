@@ -57,13 +57,16 @@ class UserProfileService(BaseResponseService):
                     },
                 )
                 res["total_trips"] = total_trips
-                res["total_earnings"] = await DataBaseMethod(Ride).sum(
-                    db,
-                    "ride_fare",
-                    {
-                        "driver_id": user_obj.id,
-                        "status": RideStatusEnum.COMPLETED.value,
-                    },
+                res["total_earnings"] = round(
+                    await DataBaseMethod(Ride).sum(
+                        db,
+                        "ride_fare",
+                        {
+                            "driver_id": user_obj.id,
+                            "status": RideStatusEnum.COMPLETED.value,
+                        },
+                    ) or 0.0,
+                    2,
                 )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.userRetrievedSuccess, res

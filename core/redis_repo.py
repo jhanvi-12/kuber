@@ -56,7 +56,7 @@ class RedisRideRepo:
 
         async with redis_client.pipeline(transaction=False) as pipe:
             pipe.hmset(key, data)
-            pipe.expire(key, 600)
+            pipe.expire(key, 1800)
             pipe.delete(f"ride:lock:{ride_request_id}")
             pipe.delete(f"ride:candidates:{ride_request_id}")
             pipe.delete(f"ride:notified:{ride_request_id}")

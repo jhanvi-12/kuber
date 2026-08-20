@@ -16,6 +16,7 @@ from config.redis_config import REDIS_BROKER_URL, SOCKET_CHANNEL, redis_client
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from core.utils.helper import send_request
 from core.utils.message_variable import *
+from core.utils.session_auth import validate_token_session
 from core.utils.token_authentication import JWTOAuth2
 from core.redis_repo import RedisDriverRepo
 from workers.dispatch_worker import DISPATCH_WORKER_ENABLED, run_dispatch_worker
@@ -121,6 +122,15 @@ async def connect(sid, environ):
         await sio.disconnect(sid)
         return
 
+    if not await validate_token_session(user_data):
+        await sio.emit(
+            "auth_error",
+            {"code": "SESSION_REVOKED", "message": "Session expired or invalid"},
+            room=sid,
+        )
+        await sio.disconnect(sid)
+        return
+
     user_id = user_data.get("user_id")
     user_type = user_data.get("user_type")
 
@@ -175,6 +185,14 @@ async def get_authenticated_user(sid):
 
     try:
         data = JWTOAuth2().verify_access_token(token.split(" ")[1])
+        if not await validate_token_session(data):
+            await sio.emit(
+                "auth_error",
+                {"code": "SESSION_REVOKED", "message": "Session expired or invalid"},
+                room=sid,
+            )
+            await sio.disconnect(sid)
+            return False
         return data
     except Exception:
         await sio.emit(

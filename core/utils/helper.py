@@ -17,7 +17,7 @@ class DateTimeUtils:
     @staticmethod
     def get_time():
         """Returns current datetime in default timezone India Standard Time"""
-        return datetime.now()
+        return datetime.now(pytz.timezone("Asia/Kolkata"))
 
 def send_request(
     method: str, url: str, headers: dict = None, json_header: bool = False, data: dict = None

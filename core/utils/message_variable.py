@@ -68,6 +68,8 @@ class InfoMessage:
     rideNearby = "Driver is nearby"
     driverNearby = "A driver is nearby your location. Please be ready for pickup"
     driverDetailsFetched = "Driver details fetched successfully!"
+    rideRequested = "Ride requested successfully!"
+    rideRequestedMsg = "Your ride request has been sent. We are searching for available drivers in your area."
 
 class ErrorMessage:
     """This class represents a user error message."""

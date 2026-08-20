@@ -58,6 +58,17 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_verified_mobile_user(
+        self, db: AsyncSession, mobile: str, deleted_at=constant.STATUS_NULL
+    ):
+        """This function will return the user object by mobile asynchronously."""
+        async with db:
+            stmt = select(self.model).where(
+                self.model.mobile == mobile, self.model.deleted_at == deleted_at
+            )
+            result = await db.execute(stmt)
+            return result.scalars().first()
+
     async def find_verified_email_user(
         self, db: AsyncSession, email: str, deleted_at=constant.STATUS_NULL
     ):

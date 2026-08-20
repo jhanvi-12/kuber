@@ -123,7 +123,7 @@ async def logout_api(
 
 @authrouter.post("/clear_session")
 async def clear_session_api(
-    body: schema.LoginSchema,
+    body: schema.ClearSessionSchema,
     db: AsyncSession = Depends(getdb),
 ):
     """

@@ -38,10 +38,11 @@ class JWTOAuth2:
         """
         try:
             print("Encoding access token with identity:", identity)
-            now = datetime.now()
+            now = datetime.utcnow()
             payload = {
                 "iss": "Your-Issuer",  # Set your issuer here
-                "iat": now.timestamp(),  # Created date of token
+                "iat": now,  # Created date of token
+                "exp": now + jwt_config.JWT_LIFETIME,  # Token expiry
                 "sub": json.dumps(identity),  # The subject of the token (the user whom it identifies)
             }
             token = jwt.encode(

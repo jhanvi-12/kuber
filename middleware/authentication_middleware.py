@@ -18,6 +18,7 @@ from starlette.responses import JSONResponse
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from apps.v1.api.pagination_service import oauth2
+from core.utils.session_auth import validate_token_session
 from core.utils.token_authentication import JWTOAuth2
 
 
@@ -58,10 +59,6 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
             "/v1/auth/forgot_password",
             "/v1/auth/reset_password",
             "/v1/driver/check/plan_expiry",
-            "/v1/user/ride",
-            "/v1/user/ride/update_status",
-            "/v1/user/ride/track_driver"
-            
         ]
         if request.url.path in excluded_paths:
             return await call_next(request)
@@ -93,10 +90,15 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
 async def authenticate(
     authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
-    """This method is used to authenticate the user using JWT token."""
+    """This method is used to authenticate the user using JWT token + active session jti."""
     token_data = JWTOAuth2().verify_access_token(
         authorize.split(" ")[1]
     )  # This will raise an exception if the token is missing or invalid
+
+    # Token signature valid is not enough: session must still exist after clear_session/logout.
+    if not await validate_token_session(token_data):
+        raise Exception("Session expired or invalid.")
+
     return token_data
 
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
