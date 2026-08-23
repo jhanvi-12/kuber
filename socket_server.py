@@ -19,6 +19,7 @@ from core.utils.message_variable import *
 from core.utils.session_auth import validate_token_session
 from core.utils.token_authentication import JWTOAuth2
 from core.redis_repo import RedisDriverRepo
+from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from workers.dispatch_worker import DISPATCH_WORKER_ENABLED, run_dispatch_worker
 
 backend_url = env_config.BACKEND_URL
@@ -208,18 +209,15 @@ async def driver_location_update(sid, data):
     Driver sends live location updates every 3 to 5 seconds
     """
     try:
-        # Get authenticated driver_id from socket session
         driver_data = await get_authenticated_user(sid)
         if not driver_data:
             return
         driver_id = driver_data["user_id"]
 
-        # Extract & validate payload
-        # Socket.IO may deliver data as a dict (already parsed) or as a JSON string
         if isinstance(data, (str, bytes, bytearray)):
             data = json.loads(data)
         elif not isinstance(data, dict):
-            return  # unexpected payload type, silently ignore
+            return
 
         lat = data.get("lat")
         lng = data.get("lng")
@@ -227,7 +225,7 @@ async def driver_location_update(sid, data):
         device_token = data.get("device_token")
 
         if lat is None or lng is None or not ride_type:
-            return  # silently ignore bad packets
+            return
 
         lat = float(lat)
         lng = float(lng)
@@ -235,35 +233,24 @@ async def driver_location_update(sid, data):
         if not (-90 <= lat <= 90 and -180 <= lng <= 180):
             return
 
-        # Update GEO location and keep heartbeat alive
-        await RedisDriverRepo.update_driver_location(
-            driver_id,
-            ride_type,
-            lat,
-            lng,
-            device_token,
-        )
         await RedisDriverRepo.update_driver_location(
             driver_id, ride_type, lat, lng, device_token,
         )
 
-        # NEW look up if this driver currently has an active ride
-        active_ride_id = await redis_client.get(f"driver:busy:{driver_id}")
-
-        if active_ride_id:
-            # Only emit to the customer on THIS specific ride
-            room_name = f"ride:{active_ride_id}"
-            await sio.emit(
-                "driver_location",
-                {"driver_id": driver_id, "lat": lat, "lng": lng},
-                # room=room_name,
+        tracking = await RedisDriverRepo.get_driver_tracking(driver_id)
+        if tracking.get("user_id"):
+            await RideSocketEmitter.driver_location(
+                driver_id=driver_id,
+                lat=lat,
+                lng=lng,
+                user_id=tracking.get("user_id")
             )
-        print(
+            print(
             f"driver_location_update Successfully emitted 'driver_location' driver_id={driver_id}  lat={lat}  lng={lng}"
         )
+
     except Exception as e:
-        # Log only never crash socket server
-        print("driver_location_update error:", str(e))
+        print("driver_location_update error: %s", str(e))
 
 @sio.on("join_room")
 async def join_room(sid, data):

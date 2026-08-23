@@ -307,6 +307,10 @@ class RedisDriverRepo:
     def _busy_key(driver_id: int) -> str:
         return f"driver:busy:{driver_id}"
 
+    @staticmethod
+    def _tracking_key(driver_id: int) -> str:
+        return f"driver:tracking:{driver_id}"
+
     @classmethod
     async def is_driver_busy(cls, driver_id: int) -> bool:
         """This method is used to check if driver is busy or not"""
@@ -339,6 +343,42 @@ class RedisDriverRepo:
         LOG.info(f"Driver {driver_id} marked busy on ride={ride_id}")
 
     @classmethod
+    async def set_driver_tracking(
+        cls,
+        driver_id: int,
+        user_id: int,
+        ride_id: int,
+        ride_request_id: str,
+    ):
+        """Store customer mapping so live location can be sent to the booking user room."""
+        await redis_client.hmset(
+            cls._tracking_key(driver_id),
+            {
+                "user_id": str(user_id),
+                "ride_id": str(ride_id),
+                "ride_request_id": str(ride_request_id or ""),
+            },
+        )
+        await redis_client.expire(cls._tracking_key(driver_id), DRIVER_ALIVE_TTL)
+
+    @classmethod
+    async def get_driver_tracking(cls, driver_id: int) -> dict:
+        """Return tracking mapping for a busy driver, or empty dict."""
+        data = await redis_client.hgetall(cls._tracking_key(driver_id))
+        if not data:
+            return {}
+        return {
+            "user_id": data.get("user_id"),
+            "ride_id": data.get("ride_id"),
+            "ride_request_id": data.get("ride_request_id"),
+        }
+
+    @classmethod
+    async def clear_driver_tracking(cls, driver_id: int):
+        """Remove live-location mapping when ride ends."""
+        await redis_client.delete(cls._tracking_key(driver_id))
+
+    @classmethod
     async def release_driver_busy(
         cls,
         driver_id: int,
@@ -349,6 +389,7 @@ class RedisDriverRepo:
     ):
         """Restore driver to dispatch pool after ride completes or is cancelled."""
         await redis_client.delete(cls._busy_key(driver_id))
+        await cls.clear_driver_tracking(driver_id)
         meta_key = cls._meta_key(driver_id)
         await redis_client.hmset(
             meta_key,

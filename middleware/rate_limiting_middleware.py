@@ -1,126 +1,103 @@
-# """Middleware for request rate limiting across APIs."""
+"""Middleware for login attempt rate limiting."""
 
-# import json
-# import time
+import json
 
-# from fastapi import status
-# from fastapi_limiter.depends import RateLimiter
-# from starlette.middleware.base import BaseHTTPMiddleware
-# from starlette.requests import Request
-# from starlette.responses import JSONResponse, Response
-
-# from config.ratelimiter_config import (
-#     LOGIN_BLOCK_SECONDS,
-#     LOGIN_MAX_ATTEMPTS_PER_DAY,
-#     RATE_LIMITER_SECONDS,
-#     RATE_LIMITER_TIME,
-#     UNAUTH_RATE_LIMIT_SECONDS,
-#     UNAUTH_RATE_LIMIT_TIMES,
-# )
-# from config.redis_config import redis_client
-# from core.utils.token_authentication import JWTOAuth2
+from fastapi import status
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 
-# class RateLimitingMiddleware(BaseHTTPMiddleware):
-#     """Class for rate limiting middleware."""
+from config.ratelimiter_config import LOGIN_BLOCK_SECONDS, LOGIN_MAX_ATTEMPTS_PER_DAY
+from config.redis_config import redis_client
+from core.utils.message_variable import ErrorMessage
 
-#     async def dispatch(self, request: Request, call_next):
-#         excluded_paths = ["/docs", "/openapi.json", "/redoc"]
-#         if request.url.path in excluded_paths:
-#             return await call_next(request)
+LOGIN_PATH = "/v1/auth/login"
+EXCLUDED_PATHS = {"/docs", "/openapi.json", "/redoc"}
 
-#         # Login-specific daily limiter:
-#         # count every login attempt (success/failure) for 24 hours.
-#         if request.url.path == "/v1/auth/login":
-#             body = await request.body()
-#             self._reset_request_body(request, body)
 
-#             try:
-#                 payload = json.loads(body.decode("utf-8")) if body else {}
-#             except Exception:
-#                 payload = {}
+class RateLimitingMiddleware:
+    """ASGI middleware: 5 login attempts per username+user_type, then 24h block."""
 
-#             login_id = str(payload.get("email") or "").strip().lower()
-#             user_type = str(payload.get("user_type") or "").strip().lower()
-#             today = time.strftime("%Y-%m-%d")
-#             login_key = f"login_attempts:{user_type}:{login_id}:{today}"
+    def __init__(self, app):
+        self.app = app
 
-#             attempts = await redis_client.get(login_key)
-#             attempts = int(attempts) if attempts else 0
-#             if attempts >= LOGIN_MAX_ATTEMPTS_PER_DAY:
-#                 return self._cors_response(
-#                     request,
-#                     JSONResponse(
-#                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-#                         content={
-#                             "status": "fail",
-#                             "data": None,
-#                             "message": "Too many login attempts. Try again after 24 hours.",
-#                         },
-#                     ),
-#                 )
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-#             await redis_client.incr(login_key)
-#             await redis_client.expire(login_key, LOGIN_BLOCK_SECONDS)
+        path = scope.get("path", "")
+        if path in EXCLUDED_PATHS or path != LOGIN_PATH:
+            await self.app(scope, receive, send)
+            return
 
-#         auth_header = request.headers.get("Authorization")
-#         if auth_header and auth_header.startswith("Bearer "):
-#             token = auth_header.split(" ")[1]
-#             try:
-#                 user_data = JWTOAuth2().verify_access_token(token)
-#                 user_id = user_data.get("user_id")
-#             except Exception:
-#                 user_id = "anonymous"
-#             request.state.view_rate_limit_key = f"user:{user_id}"
-#             limiter = RateLimiter(
-#                 times=RATE_LIMITER_TIME,
-#                 seconds=RATE_LIMITER_SECONDS,
-#                 identifier=self._request_identifier,
-#             )
-#         else:
-#             limiter = RateLimiter(
-#                 times=UNAUTH_RATE_LIMIT_TIMES,
-#                 seconds=UNAUTH_RATE_LIMIT_SECONDS,
-#             )
+        body = await self._read_body(receive)
+        request = Request(scope, receive)
+        blocked_response = await self._check_login_limit(request, body)
+        if blocked_response is not None:
+            await blocked_response(scope, self._disconnect_receive, send)
+            return
 
-#         dummy_response = Response()
-#         try:
-#             await limiter(request, dummy_response)
-#         except Exception:
-#             return self._cors_response(
-#                 request,
-#                 JSONResponse(
-#                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-#                     content={
-#                         "status": "fail",
-#                         "data": None,
-#                         "message": "Too many request send!",
-#                     },
-#                 ),
-#             )
+        body_sent = False
 
-#         response = await call_next(request)
-#         return response
+        async def replay_receive():
+            nonlocal body_sent
+            if not body_sent:
+                body_sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
 
-#     @staticmethod
-#     async def _request_identifier(request: Request):
-#         return getattr(request.state, "view_rate_limit_key", "anonymous")
+        await self.app(scope, replay_receive, send)
 
-#     @staticmethod
-#     def _reset_request_body(request: Request, body: bytes):
-#         """Restore consumed request body for downstream handlers."""
+    @staticmethod
+    async def _read_body(receive) -> bytes:
+        chunks = []
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message["type"] != "http.request":
+                break
+            chunks.append(message.get("body", b""))
+            more_body = message.get("more_body", False)
+        return b"".join(chunks)
 
-#         async def receive():
-#             return {"type": "http.request", "body": body, "more_body": False}
+    @staticmethod
+    async def _disconnect_receive():
+        return {"type": "http.disconnect"}
 
-#         request._receive = receive
+    @staticmethod
+    async def _check_login_limit(request: Request, body: bytes):
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            payload = {}
 
-#     @staticmethod
-#     def _cors_response(request: Request, response: Response):
-#         response.headers["Access-Control-Allow-Origin"] = request.headers.get(
-#             "Origin", "*"
-#         )
-#         response.headers["Access-Control-Allow-Credentials"] = "true"
-#         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-#         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-#         return response
+        login_id = str(payload.get("username") or "").strip().lower()
+        user_type = str(payload.get("user_type") or "").strip().lower()
+        if not login_id:
+            return None
+
+        login_key = f"login_attempts:{user_type}:{login_id}"
+        attempts = await redis_client.incr(login_key)
+        if attempts == 1:
+            await redis_client.expire(login_key, LOGIN_BLOCK_SECONDS)
+        if attempts <= LOGIN_MAX_ATTEMPTS_PER_DAY:
+            return None
+
+        response = JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "status": "fail",
+                "data": None,
+                "message": ErrorMessage.loginAttemptsExceeded,
+            },
+        )
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get(
+            "Origin", "*"
+        )
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET, POST, OPTIONS, PUT, DELETE"
+        )
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        return response

@@ -16,7 +16,6 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
-#from fastapi_limiter import FastAPILimiter
 
 from apps.v1.api.auth.view import authrouter
 from apps.v1.api.driver.view import driverrouter
@@ -25,7 +24,7 @@ from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
 from middleware.authentication_middleware import AuthenticateMiddleware, MaxBodySizeMiddleware
-#from middleware.rate_limiting_middleware import RateLimitingMiddleware
+from middleware.rate_limiting_middleware import RateLimitingMiddleware
 from config.redis_config import redis_client
 
 
@@ -68,7 +67,7 @@ def make_middleware() -> list[Middleware]:
             MaxBodySizeMiddleware,
             max_body_size=10 * 1024 * 1024  # 10MB
         ),
-        # Middleware(RateLimitingMiddleware),
+        Middleware(RateLimitingMiddleware),
         Middleware(AuthenticateMiddleware)
     ]
     return middleware
@@ -89,10 +88,6 @@ def create_app() -> FastAPI:
         # redoc_url=None if config.ENV == "production" else "/redoc",
         middleware=make_middleware(),
     )
-
-    # @app_.on_event("startup")
-    # async def startup():
-    #     await FastAPILimiter.init(redis_client)
 
     init_routers(app_=app_)
     return app_

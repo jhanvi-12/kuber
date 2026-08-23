@@ -138,6 +138,12 @@ class RideAcceptService(BaseResponseService):
                 ride_id=ride.id,
                 ride_type=vehicle_data.ride_type,
             )
+            await RedisDriverRepo.set_driver_tracking(
+                driver_id=driver_id,
+                user_id=ride.user_id,
+                ride_id=ride.id,
+                ride_request_id=ride_request_id,
+            )
 
             # Emit socket event
             data = jsonable_encoder(driver_data)

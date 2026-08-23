@@ -202,8 +202,8 @@ class SignUpService(BaseResponseService):
                 )
 
             mobile_exists = (
-                await UserAuthMethod(User).find_by_mobile(db, mobile)
-                or await UserAuthMethod(Driver).find_by_mobile(db, mobile)
+                await UserAuthMethod(User).find_verified_mobile_user(db, mobile)
+                or await UserAuthMethod(Driver).find_verified_mobile_user(db, mobile)
             )
             if mobile_exists:
                 return self.response(

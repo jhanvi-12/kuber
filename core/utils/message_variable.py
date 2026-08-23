@@ -146,3 +146,5 @@ class ErrorMessage:
     reviewAlreadySubmitted = "You have already submitted a review for this ride."
     alreadyLoggedIn = "You are already logged in on another device. Please logout from your previous device first."
     noActiveSession = "No active session found for this account."
+    tooManyRequests = "Too many requests. Please try again later."
+    loginAttemptsExceeded = "Too many login attempts. Try again after 24 hours."
