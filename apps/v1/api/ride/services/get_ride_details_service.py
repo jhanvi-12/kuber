@@ -29,6 +29,10 @@ from apps.v1.api.driver.services.driver_search_service import DriverSearchServic
 from apps.v1.api.driver.services.driver_firebase_notification import DriverFirebaseNotification
 
 RIDE_STATUS_INFO = {
+    RideStatusEnum.INITIAL.value: {
+        "title": InfoMessage.rideRequested,
+        "message": InfoMessage.rideRequestedMsg
+    },
     RideStatusEnum.ACCEPTED.value: {
         "title": InfoMessage.reqAccepted,
         "message": InfoMessage.driverHeading
@@ -498,31 +502,36 @@ class RideDetailService(BaseResponseService):
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
                     )
                 ride_key = f"ride:search:{ride_id}"
+                is_from_redis = await redis_client.exists(ride_key)
 
                 # Fetch ride request
-                ride_req = (
-                    await redis_client.hgetall(ride_key)
-                    if await redis_client.exists(ride_key)
-                    else jsonable_encoder(
-                        await UserAuthMethod(Ride).find_by_id(db, int(ride_id))
+                if is_from_redis:
+                    ride_req = await redis_client.hgetall(ride_key)
+                else:
+                    ride_req = jsonable_encoder(
+                        await UserAuthMethod(Ride).find_by_id(db, ride_id)
                     )
-                )
+
                 if not ride_req:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                     )
+
                 status_value = ride_req.get("status")
-                status_info = RIDE_STATUS_INFO.get(status_value, {"title": "Ride Update", "message": ""})
+                status_info = RIDE_STATUS_INFO.get(int(status_value))
 
                 data = {
-                    "ride_request_id": ride_req.get("ride_uuid"),
-                    "ride_id": int(ride_id),
                     "title": status_info["title"],
                     "message": status_info["message"],
-                    "status": status_value,
+                    "status": int(status_value),
                 }
 
-                if ride_req.get("status") in [
+                if is_from_redis:
+                    data["ride_request_id"] = ride_id  # the UUID param used as redis key
+                else:
+                    data["ride_id"] = ride_req.get("id")  # int PK from DB row
+
+                if status_value in [
                     RideStatusEnum.ACCEPTED.value,
                     RideStatusEnum.REACHED.value,
                     RideStatusEnum.STARTED.value,

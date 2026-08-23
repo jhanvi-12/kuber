@@ -45,6 +45,31 @@ class RideSocketEmitter:
         await redis_client.publish(SOCKET_CHANNEL, json.dumps(payload))
 
     @staticmethod
+    async def driver_location(
+        driver_id: int,
+        lat: float,
+        lng: float,
+        user_id: int = None,
+    ):
+        """Notify the booking customer of the driver's live location."""
+        if not user_id:
+            LOG.warning(
+                "driver_location skipped: no user_id for driver_id=%s",
+                driver_id,
+            )
+            return
+
+        await RideSocketEmitter._publish(
+            "driver_location",
+            {
+                "driver_id": driver_id,
+                "lat": lat,
+                "lng": lng
+            },
+            room=RideSocketEmitter._user_room(int(user_id)),
+        )
+
+    @staticmethod
     async def ride_searching(ride_request_id: str, user_id: int = None):
         """Notify the booking customer that driver search has started."""
         resolved_user_id = await RideSocketEmitter._resolve_user_id(

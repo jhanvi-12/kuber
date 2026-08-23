@@ -68,6 +68,8 @@ class InfoMessage:
     rideNearby = "Driver is nearby"
     driverNearby = "A driver is nearby your location. Please be ready for pickup"
     driverDetailsFetched = "Driver details fetched successfully!"
+    rideRequested = "Ride requested successfully!"
+    rideRequestedMsg = "Your ride request has been sent. We are searching for available drivers in your area."
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -144,3 +146,5 @@ class ErrorMessage:
     reviewAlreadySubmitted = "You have already submitted a review for this ride."
     alreadyLoggedIn = "You are already logged in on another device. Please logout from your previous device first."
     noActiveSession = "No active session found for this account."
+    tooManyRequests = "Too many requests. Please try again later."
+    loginAttemptsExceeded = "Too many login attempts. Try again after 24 hours."

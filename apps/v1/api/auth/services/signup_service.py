@@ -189,9 +189,25 @@ class SignUpService(BaseResponseService):
             dict: data dict if the user exists, False otherwise.
         """
         try:
-            if await UserAuthMethod(model_name).find_by_email(db, body["email"]):
+            email = body["email"]
+            mobile = body["mobile"]
+
+            email_exists = (
+                await UserAuthMethod(User).find_by_email(db, email)
+                or await UserAuthMethod(Driver).find_by_email(db, email)
+            )
+            if email_exists:
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.emailAllreadyExists
+                )
+
+            mobile_exists = (
+                await UserAuthMethod(User).find_verified_mobile_user(db, mobile)
+                or await UserAuthMethod(Driver).find_verified_mobile_user(db, mobile)
+            )
+            if mobile_exists:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, "Mobile number already exists."
                 )
             hashed_password = generate_password_hash(body["password"])
             contact = body["mobile"] if body["mobile"] else constant.STATUS_NULL

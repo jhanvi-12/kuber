@@ -57,26 +57,67 @@ class UpdateRegisterSchema(BaseModel):
             }
         }
 
-
 class LoginSchema(BaseModel):
     """This class represents the login schema."""
+
+    username: str  # accepts either email or mobile number
+    password: str
+    user_type: str
+
+    class Config:
+        """This class is the schema for user configuration."""
+        from_attributes = constant.STATUS_TRUE
+        extra = "forbid"
+        json_schema_extra = {
+            "example": {
+                "username": "johnsmith@example.com or 9876543210",
+                "password": "Password@123",
+                "user_type": "customer/driver",
+            }
+        }
+
+    @field_validator("password")
+    def password_validation(cls, v):
+        """Validates the password format."""
+        return ValidationMethods().validate_password(v)
+
+    @field_validator("username")
+    def username_validation(cls, v):
+        """Validates the username format (email or mobile number)."""
+        v = v.strip()
+        if "@" in v:
+            # basic email format check
+            from email_validator import validate_email, EmailNotValidError
+            try:
+                validate_email(v)
+            except EmailNotValidError:
+                raise ValueError("Invalid email format")
+        else:
+            # basic mobile number check — adjust regex to your accepted formats
+            import re
+            if not re.fullmatch(r"[6-9]\d{9}", v):
+                raise ValueError("Invalid mobile number format")
+        return v
+
+class ClearSessionSchema(BaseModel):
+    """Schema for clearing active login session."""
 
     email: EmailStr
     password: str
     user_type: str
 
     class Config:
-        """This class is the schema for user configuration."""
+        """Schema configuration."""
 
         from_attributes = constant.STATUS_TRUE
         extra = "forbid"
         json_schema_extra = {
-            "example": {"email": "johnsmith@example.com", "password": "Password@123", "user_type": "customer/driver"}
+            "example": {
+                "email": "abc@gmail.com",
+                "password": "Password@123",
+                "user_type": "customer/driver"
+            }
         }
-
-    @field_validator("password")
-    def password_validation(cls, v):
-        return ValidationMethods().validate_password(v)
 
 class AdminLoginSchema(BaseModel):
     """This class represents the admin login schema."""

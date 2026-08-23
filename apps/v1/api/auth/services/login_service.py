@@ -51,10 +51,16 @@ class LoginService(BaseResponseService):
         """
         try:
             body = body.dict()
-            # check if user email is exists or not.
-            user_obj = await self.get_verified_user_by_email(
-                db, body["email"], body.get("user_type")
-            )
+            username = body.get("username")
+            # detect whether it's an email or mobile number
+            if "@" in username:
+                user_obj = await self.get_verified_user_by_email(
+                    db, username, body.get("user_type")
+                )
+            else:
+                user_obj = await self.get_verified_user_by_mobile(
+                    db, username, body.get("user_type")
+                )
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound
@@ -276,5 +282,24 @@ class LoginService(BaseResponseService):
         user_type_model = Driver if user_type == "driver" else User
         user_obj = await UserAuthMethod(user_type_model).find_verified_email_user(
             db, email
+        )
+        return user_obj
+
+    async def get_verified_user_by_mobile(
+        self, db: AsyncSession, mobile: str, user_type: str
+    ):
+        """
+        Finds a user by mobile number.
+
+        Args:
+            db (AsyncSession): The database session.
+            mobile (str): The mobile number.
+
+        Returns:
+            User: The user object if found, else None.
+        """
+        user_type_model = Driver if user_type == "driver" else User
+        user_obj = await UserAuthMethod(user_type_model).find_verified_mobile_user(
+            db, mobile
         )
         return user_obj

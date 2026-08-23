@@ -24,6 +24,8 @@ from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
 from middleware.authentication_middleware import AuthenticateMiddleware, MaxBodySizeMiddleware
+from middleware.rate_limiting_middleware import RateLimitingMiddleware
+from config.redis_config import redis_client
 
 
 def init_routers(app_: FastAPI) -> None:
@@ -65,6 +67,7 @@ def make_middleware() -> list[Middleware]:
             MaxBodySizeMiddleware,
             max_body_size=10 * 1024 * 1024  # 10MB
         ),
+        Middleware(RateLimitingMiddleware),
         Middleware(AuthenticateMiddleware)
     ]
     return middleware
@@ -85,6 +88,7 @@ def create_app() -> FastAPI:
         # redoc_url=None if config.ENV == "production" else "/redoc",
         middleware=make_middleware(),
     )
+
     init_routers(app_=app_)
     return app_
 
