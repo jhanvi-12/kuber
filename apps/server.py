@@ -1,0 +1,96 @@
+"""
+FastAPI Application Module
+
+This module sets up a FastAPI application with middleware for CORS, request logging,
+rate limiting, and authentication. It also includes custom exception handling.
+
+Functions:
+- init_routers: Includes authentication and client routers.
+- init_listeners: Sets up custom exception handlers.
+- make_middleware: Returns a list of middleware.
+- create_app: Configures and creates the FastAPI application instance.
+"""
+
+import logging
+import asyncio
+from fastapi import FastAPI
+from fastapi.middleware import Middleware
+from fastapi.middleware.cors import CORSMiddleware
+
+from apps.v1.api.auth.view import authrouter
+from apps.v1.api.driver.view import driverrouter
+from apps.v1.api.ride.view import riderouter
+from config import project_path
+from core.utils import constant_variable
+from middleware import S3PathMiddleware
+from middleware.authentication_middleware import AuthenticateMiddleware, MaxBodySizeMiddleware
+from middleware.rate_limiting_middleware import RateLimitingMiddleware
+from config.redis_config import redis_client
+
+
+def init_routers(app_: FastAPI) -> None:
+    """
+    Initialize and include routers for the FastAPI application.
+
+    Args:
+        app_ (FastAPI): The FastAPI application instance to which the routers will be added.
+    """
+    app_.include_router(
+        authrouter, prefix=f"{constant_variable.API_V1}/auth", tags=["Authentication"]
+    )
+    app_.include_router(
+        driverrouter, prefix=f"{constant_variable.API_V1}/driver", tags=["Driver"]
+    )
+    app_.include_router(
+        riderouter, prefix=f"{constant_variable.API_V1}/user", tags=["Ride"]
+    )
+
+def make_middleware() -> list[Middleware]:
+    """
+    Create and return a list of middleware to be used in the FastAPI application.
+
+    Returns:
+        list[Middleware]: A list of middleware instances to be added to the FastAPI application.
+    """
+    middleware = [
+        Middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=constant_variable.STATUS_TRUE,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        ),
+        Middleware(
+            S3PathMiddleware, config_path=f"{project_path.S3_ROOT}/s3_paths_config.json"
+        ),
+        Middleware(
+            MaxBodySizeMiddleware,
+            max_body_size=10 * 1024 * 1024  # 10MB
+        ),
+        Middleware(RateLimitingMiddleware),
+        Middleware(AuthenticateMiddleware)
+    ]
+    return middleware
+
+
+def create_app() -> FastAPI:
+    """
+    Create and configure a new FastAPI application instance.
+
+    Returns:
+        FastAPI: The configured FastAPI application instance.
+    """
+    app_ = FastAPI(
+        title="Kuber Cab",
+        description="FastAPI",
+        version="1.0.0",
+        # docs_url=None if config.ENV == "production" else "/docs",
+        # redoc_url=None if config.ENV == "production" else "/redoc",
+        middleware=make_middleware(),
+    )
+
+    init_routers(app_=app_)
+    return app_
+
+
+app = create_app()
