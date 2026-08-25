@@ -3,7 +3,9 @@ This module defines the service for admin user signup, including the creation of
 """
 
 import json
+import math
 import uuid
+from datetime import timedelta
 
 from fastapi import Response, status
 from fastapi.encoders import jsonable_encoder
@@ -17,7 +19,7 @@ from apps.v1.api.auth.serializer import RegisterResSchema
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
 from config import aws_config
-from core.utils import DataBaseMethod, ValidationMethods
+from core.utils import DataBaseMethod, DateTimeUtils, ValidationMethods
 from core.utils import constant_variable as constant
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from apps.v1.api.driver.models.attribute import DriverStatusEnum
@@ -192,23 +194,17 @@ class SignUpService(BaseResponseService):
             email = body["email"]
             mobile = body["mobile"]
 
-            email_exists = (
-                await UserAuthMethod(User).find_by_email(db, email)
-                or await UserAuthMethod(Driver).find_by_email(db, email)
+            email_error = await self._check_register_identifier(
+                db, email=email, mobile=None
             )
-            if email_exists:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, ErrorMessage.emailAllreadyExists
-                )
+            if email_error:
+                return self.response(status.HTTP_400_BAD_REQUEST, email_error)
 
-            mobile_exists = (
-                await UserAuthMethod(User).find_verified_mobile_user(db, mobile)
-                or await UserAuthMethod(Driver).find_verified_mobile_user(db, mobile)
+            mobile_error = await self._check_register_identifier(
+                db, email=None, mobile=mobile
             )
-            if mobile_exists:
-                return self.response(
-                    status.HTTP_400_BAD_REQUEST, "Mobile number already exists."
-                )
+            if mobile_error:
+                return self.response(status.HTTP_400_BAD_REQUEST, mobile_error)
             hashed_password = generate_password_hash(body["password"])
             contact = body["mobile"] if body["mobile"] else constant.STATUS_NULL
             if profile_image_file:
@@ -228,3 +224,47 @@ class SignUpService(BaseResponseService):
             )
         except Exception:
             return constant.STATUS_FALSE
+
+    async def _check_register_identifier(self, db: AsyncSession, email=None, mobile=None):
+        """Reject signup if the email/mobile is active or still in the 30-day cooling period."""
+        records = []
+        for model in (User, Driver):
+            if email:
+                record = await UserAuthMethod(model).find_latest_by_email(db, email)
+            else:
+                record = await UserAuthMethod(model).find_latest_by_mobile(db, mobile)
+            if record:
+                records.append(record)
+
+        if any(record.deleted_at is None for record in records):
+            if email:
+                return ErrorMessage.emailAllreadyExists
+            return "Mobile number already exists."
+
+        remaining_days = 0
+        for record in records:
+            remaining_days = max(
+                remaining_days, self._cooling_days_remaining(record.deleted_at)
+            )
+        if remaining_days > 0:
+            if email:
+                return ErrorMessage.emailDeletedRecently.format(days=remaining_days)
+            return ErrorMessage.mobileDeletedRecently.format(days=remaining_days)
+        return None
+
+    @staticmethod
+    def _cooling_days_remaining(deleted_at) -> int:
+        """Days left in the deletion cooling period, or 0 if it has elapsed."""
+        if not deleted_at:
+            return 0
+
+        def to_naive(value):
+            return value.replace(tzinfo=None) if getattr(value, "tzinfo", None) else value
+
+        cooling_end = to_naive(deleted_at) + timedelta(
+            days=constant.ACCOUNT_DELETION_COOLING_DAYS
+        )
+        remaining = cooling_end - to_naive(DateTimeUtils.get_time())
+        if remaining.total_seconds() <= 0:
+            return 0
+        return max(1, math.ceil(remaining.total_seconds() / 86400))

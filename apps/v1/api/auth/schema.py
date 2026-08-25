@@ -99,26 +99,6 @@ class LoginSchema(BaseModel):
                 raise ValueError("Invalid mobile number format")
         return v
 
-class ClearSessionSchema(BaseModel):
-    """Schema for clearing active login session."""
-
-    email: EmailStr
-    password: str
-    user_type: str
-
-    class Config:
-        """Schema configuration."""
-
-        from_attributes = constant.STATUS_TRUE
-        extra = "forbid"
-        json_schema_extra = {
-            "example": {
-                "email": "abc@gmail.com",
-                "password": "Password@123",
-                "user_type": "customer/driver"
-            }
-        }
-
 class AdminLoginSchema(BaseModel):
     """This class represents the admin login schema."""
 

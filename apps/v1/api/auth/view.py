@@ -9,6 +9,7 @@ from apps.v1.api.auth import schema
 from apps.v1.api.auth.models import attribute
 from apps.v1.api.auth.services.login_service import LoginService
 from apps.v1.api.auth.services.reset_pwd_service import ResetPasswordService
+from apps.v1.api.auth.services.delete_account_service import DeleteAccountService
 from apps.v1.api.auth.services.signup_service import SignUpService
 from apps.v1.api.auth.services.user_profile_service import UserProfileService
 from apps.v1.api.auth.services.verify_otp_service import VerifyOtpService
@@ -121,16 +122,31 @@ async def logout_api(
     return response
 
 
+@authrouter.delete("/delete_account")
+async def delete_account_api(
+    db: AsyncSession = Depends(getdb),
+    authorize: HTTPAuthorizationCredentials = Depends(oauth2),
+):
+    """
+    Soft-deletes the authenticated customer or driver account.
+
+    After 30 days the same email or mobile can be used to register a new account.
+    """
+    current_user = JWTOAuth2().verify_access_token(authorize.credentials)
+    response = await DeleteAccountService().delete_account_service(db, current_user)
+    return response
+
+
 @authrouter.post("/clear_session")
 async def clear_session_api(
-    body: schema.ClearSessionSchema,
+    body: schema.LoginSchema,
     db: AsyncSession = Depends(getdb),
 ):
     """
     Clears active login session for customer/driver so they can log in again.
 
     Args:
-        body (LoginSchema): The request body containing email, password, and user_type.
+        body (ClearSessionSchema): username (email or mobile), password, and user_type.
         db (AsyncSession): The database session.
 
     Returns:

@@ -22,3 +22,13 @@ class VehicleMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_all_by_driver_id(
+        self, db: AsyncSession, driver_id: int, deleted_at=constant.STATUS_NULL
+    ):
+        """Return all vehicles for a driver."""
+        stmt = select(self.model).where(
+            self.model.driver_id == driver_id, self.model.deleted_at == deleted_at
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
