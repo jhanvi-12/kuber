@@ -81,7 +81,7 @@ class UserLogoutService(BaseResponseService):
 
         Args:
             db (AsyncSession): The database session.
-            body: LoginSchema with email, password, and user_type.
+            body: ClearSessionSchema with username (email or mobile), password, and user_type.
 
         Returns:
             StandardResponse: The response object with status and message.
@@ -89,10 +89,16 @@ class UserLogoutService(BaseResponseService):
         try:
             body = body.dict()
             user_type = body.get("user_type")
+            username = body.get("username")
 
-            user_obj = await LoginService().get_verified_user_by_email(
-                db, body["email"], user_type
-            )
+            if "@" in username:
+                user_obj = await LoginService().get_verified_user_by_email(
+                    db, username, user_type
+                )
+            else:
+                user_obj = await LoginService().get_verified_user_by_mobile(
+                    db, username, user_type
+                )
             if not user_obj:
                 return self.response(
                     status.HTTP_404_NOT_FOUND, ErrorMessage.userNotFound

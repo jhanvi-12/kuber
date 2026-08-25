@@ -1,7 +1,7 @@
 """This module contains database operations methods."""
 
 from datetime import datetime
-from sqlalchemy import desc, func
+from sqlalchemy import case, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from apps.v1.api.ride.models.attribute import RideStatusEnum
@@ -57,6 +57,50 @@ class UserAuthMethod:
             )
             result = await db.execute(stmt)
             return result.scalars().first()
+
+    async def find_latest_by_email(self, db: AsyncSession, email: str):
+        """Return the latest account for an email, including soft-deleted rows.
+
+        Active rows (deleted_at is null) are preferred, then the most recently
+        deleted row. Used by register to enforce the deletion cooling period.
+        """
+        stmt = (
+            select(self.model)
+            .where(self.model.email == email)
+            .order_by(
+                case((self.model.deleted_at.is_(None), 0), else_=1),
+                desc(self.model.deleted_at),
+            )
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def find_latest_by_mobile(self, db: AsyncSession, mobile: str):
+        """Return the latest account for a mobile, including soft-deleted rows."""
+        stmt = (
+            select(self.model)
+            .where(self.model.mobile == mobile)
+            .order_by(
+                case((self.model.deleted_at.is_(None), 0), else_=1),
+                desc(self.model.deleted_at),
+            )
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def find_all_sessions_by_account(
+        self, db: AsyncSession, user_id=None, driver_id=None
+    ):
+        """Return all sessions for a customer or driver."""
+        stmt = select(self.model)
+        if user_id:
+            stmt = stmt.where(self.model.user_id == user_id)
+        elif driver_id:
+            stmt = stmt.where(self.model.driver_id == driver_id)
+        else:
+            return []
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     async def find_verified_mobile_user(
         self, db: AsyncSession, mobile: str, deleted_at=constant.STATUS_NULL

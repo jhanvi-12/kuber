@@ -71,6 +71,7 @@ class DriverListSchema(Schema):
     created_at = fields.DateTime(required=True)
     profile_image = fields.Method("get_profile_image")
     is_docs_verified = fields.Int(required=True)
+    is_available = fields.Boolean(required=True)
 
     def get_profile_image(self, obj):
         """method to fetch the user profile"""

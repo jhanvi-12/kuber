@@ -74,6 +74,7 @@ MINUTES_IN_HOUR = 60
 HOURS_IN_DAY = 24
 DAYS_IN_WEEK = 7
 DAYS_IN_YEAR = 365
+ACCOUNT_DELETION_COOLING_DAYS = 30
 
 ## Regular Expressions Patterns ##
 EMAIL_REGEX = r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
