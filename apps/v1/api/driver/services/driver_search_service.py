@@ -13,8 +13,6 @@ from core.utils import constant_variable
 
 LOG = logging.getLogger(__name__)
 
-RIDE_SEARCH_TTL = 300  # 5 minutes total max lifetime of a ride search
-
 
 class DriverSearchService:
     """Class for searching the driver in waves"""
@@ -181,25 +179,6 @@ class DriverSearchService:
         )
 
     @staticmethod
-    async def _cleanup_ride(ride_request_id: str):
-        """Set TTL on all ride search keys. Always awaited."""
-        try:
-            keys = [
-                f"ride:search:{ride_request_id}",
-                f"ride:wave:{ride_request_id}",
-                f"ride:status:{ride_request_id}",
-                f"ride:notified:{ride_request_id}",
-                f"ride:candidates:{ride_request_id}",
-            ]
-            async with redis_client.pipeline(transaction=False) as pipe:
-                for key in keys:
-                    pipe.expire(key, 60)
-                await pipe.execute()
-            LOG.info(f"Cleanup TTL set for ride={ride_request_id}")
-        except Exception as e:
-            LOG.error(f"Cleanup error ride={ride_request_id}: {e}")
-
-    @staticmethod
     async def start_wave(
         ride_request_id: str,
         ride_type: str,
@@ -315,9 +294,3 @@ class DriverSearchService:
                 exc_info=True
             )
             await DriverSearchService._emit_search_failed(ride_request_id, user_id)
-
-        finally:
-            # Only expire search keys once dispatch has finished (accepted/failed/cancelled).
-            status = await RedisRideRepo.get_status(ride_request_id)
-            if status != "-1":
-                await DriverSearchService._cleanup_ride(ride_request_id)

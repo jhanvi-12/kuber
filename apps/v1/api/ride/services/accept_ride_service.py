@@ -20,7 +20,7 @@ from apps.v1.api.ride.services.book_ride_service import BookRideService
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from config import aws_config
 from config.redis_config import redis_client
-from core.redis_repo import RedisDriverRepo
+from core.redis_repo import RedisDriverRepo, RIDE_SEARCH_TTL
 from core.utils import constant_variable as constant
 from core.utils.message_variable import *
 from apps.v1.api.driver.services.driver_search_service import DriverSearchService
@@ -123,10 +123,19 @@ class RideAcceptService(BaseResponseService):
             await redis_client.hmset(
                 redis_key,
                 {
-                    "status": RideStatusEnum.ACCEPTED.value,
-                    "driver_id": driver_id,
-                    "ride_id": ride.id,
+                    "status": str(RideStatusEnum.ACCEPTED.value),
+                    "driver_id": str(driver_id),
+                    "ride_id": str(ride.id),
                 },
+            )
+            search_ttl = await redis_client.ttl(redis_key)
+            mapping_ttl = (
+                search_ttl
+                if isinstance(search_ttl, int) and search_ttl > 0
+                else RIDE_SEARCH_TTL
+            )
+            await redis_client.set(
+                f"ride:db:{ride.id}", ride_request_id, ex=mapping_ttl
             )
 
             driver_data.is_available = constant.STATUS_FALSE

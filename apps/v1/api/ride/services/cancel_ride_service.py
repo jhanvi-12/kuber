@@ -103,6 +103,20 @@ class UserRideCancelService(BaseResponseService):
             db.add(ride)
             await db.commit()
             await db.refresh(ride)
+            cancelled_status = int(RideStatusEnum.CANCELLED.value)
+            ride.status = cancelled_status
+
+            ride_request_id = await redis_client.get(f"ride:db:{ride.id}")
+            if ride_request_id:
+                await redis_client.hmset(
+                    f"ride:search:{ride_request_id}",
+                    {
+                        "status": str(cancelled_status),
+                        "cancelled_by": str(user_type or ""),
+                        "cancellation_reason": str(reason or ""),
+                        "cancellation_description": str(description or ""),
+                    },
+                )
 
             if ride.driver_id:
                 assigned_driver = await UserAuthMethod(Driver).find_by_id(
@@ -134,8 +148,8 @@ class UserRideCancelService(BaseResponseService):
                     )
 
             await RideSocketEmitter.book_ride_status(
-                ride_status=ride.status,
-                ride_request_id=None,
+                ride_status=cancelled_status,
+                ride_request_id=ride_request_id,
                 ride_id=ride.id,
                 driver_data=None,
                 user_id=ride.user_id,
@@ -159,7 +173,9 @@ class UserRideCancelService(BaseResponseService):
                 )
 
                 if recipient and recipient.device_token:
-                    serialized_payload = DriverSearchService.serialize_user_data({"status": ride.status})
+                    serialized_payload = DriverSearchService.serialize_user_data(
+                        {"status": cancelled_status}
+                    )
                     await DriverFirebaseNotification().send_notification_to_drivers(
                         recipient.device_token,
                         notification_message,
@@ -176,7 +192,7 @@ class UserRideCancelService(BaseResponseService):
             return self.response(
                 status.HTTP_200_OK,
                 InfoMessage.rideCancelledSuccessfully,
-                data={"ride_id": ride.id, "status": ride.status},
+                data={"ride_id": ride.id, "status": cancelled_status},
             )
 
         except Exception:
@@ -216,7 +232,7 @@ class UserRideCancelService(BaseResponseService):
             await redis_client.hmset(
                 redis_key,
                 {
-                    "status": "Cancelled",
+                    "status": str(RideStatusEnum.CANCELLED.value),
                     "ride_request_id": ride_request_id,
                 },
             )

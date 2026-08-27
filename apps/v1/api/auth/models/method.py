@@ -237,15 +237,14 @@ class UserAuthMethod:
     async def find_ride_by_user_id(
             self, db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime
             ):
-        """This methos is used to fetch the user rides data upto latest 5 days"""
+        """This method is used to fetch the user rides data upto latest 5 days"""
         async with db:
             # Base filter
             date_filters = [
                 self.model.user_id == user_id,
                 self.model.deleted_at == constant.STATUS_NULL,
-                # TODO : Handle the case when we need to show cancelled and completed rides in future if needed
-                # self.model.status.in_([RideStatusEnum.COMPLETED.value,
-                #                         RideStatusEnum.CANCELLED.value]),
+                self.model.status.in_([RideStatusEnum.COMPLETED.value,
+                                        RideStatusEnum.CANCELLED.value]),
                 func.date(self.model.created_at) >= start_date.date(),
                 func.date(self.model.created_at) <= end_date.date(),
             ]

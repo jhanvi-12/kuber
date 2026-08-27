@@ -10,6 +10,7 @@ from core.utils import constant_variable
 DRIVER_ALIVE_TTL = 21600     # 6 hour — renewed by heartbeat
 DRIVER_META_TTL = 1800       # half an hour — auto cleanup if driver never logs out cleanly
 DRIVER_GEO_TTL = 1800        # half an hour — same
+RIDE_SEARCH_TTL = 600        # 10 minutes — ride_request_id keys expire from booking time
 # FCM registration tokens are JWT-length strings (typically 140+ chars).
 MIN_DEVICE_TOKEN_LENGTH = 80
 INVALID_DEVICE_TOKEN_VALUES = frozenset({"", "none", "null", "undefined"})
@@ -56,7 +57,7 @@ class RedisRideRepo:
 
         async with redis_client.pipeline(transaction=False) as pipe:
             pipe.hmset(key, data)
-            pipe.expire(key, 1800)
+            pipe.expire(key, RIDE_SEARCH_TTL)
             pipe.delete(f"ride:lock:{ride_request_id}")
             pipe.delete(f"ride:candidates:{ride_request_id}")
             pipe.delete(f"ride:notified:{ride_request_id}")

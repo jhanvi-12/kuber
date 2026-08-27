@@ -15,12 +15,12 @@ from apps.v1.api.ride.models.attribute import RideStatusEnum
 from apps.v1.api.ride.models.model import Ride
 from apps.v1.api.ride.serializer import (CustomerRidesResSchema,
                                          DriverRidesResponseSchema,
-                                         RideResponse, RideSchema)
+                                         RideResponse)
 from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from apps.v1.api.vehicle.models.model import Vehicle
 from config import aws_config
 from config.redis_config import redis_client
-from core.redis_repo import RedisDriverRepo
+from core.redis_repo import RedisDriverRepo, RedisRideRepo
 from core.utils import constant_variable as constant
 from core.utils.db_method import DataBaseMethod
 from core.utils.message_variable import *
@@ -50,11 +50,17 @@ RIDE_STATUS_INFO = {
         "message": InfoMessage.rideCompletedMsg
     },
     RideStatusEnum.CANCELLED.value: {
-        "status": RideStatusEnum.CANCELLED.value,
         "title": InfoMessage.rideCancelledSuccessfully,
         "message": InfoMessage.rideCancelled,
-        "include_driver": False,
     },
+}
+
+STATUSES_WITH_DRIVER = {
+    RideStatusEnum.ACCEPTED.value,
+    RideStatusEnum.REACHED.value,
+    RideStatusEnum.STARTED.value,
+    RideStatusEnum.COMPLETED.value,
+    RideStatusEnum.CANCELLED.value,
 }
 
 class RideDetailService(BaseResponseService):
@@ -477,6 +483,56 @@ class RideDetailService(BaseResponseService):
                 ErrorMessage.generalTryAgain,
             )
 
+    @staticmethod
+    def _normalize_ride_status(raw_status):
+        """Convert Redis/DB status values to RideStatusEnum int."""
+        if raw_status is None or raw_status == "":
+            return None
+        if isinstance(raw_status, bool):
+            return None
+        if isinstance(raw_status, RideStatusEnum):
+            return int(raw_status.value)
+        if isinstance(raw_status, int):
+            return int(raw_status)
+        value = str(raw_status).strip()
+        if value.lower() == "cancelled":
+            return RideStatusEnum.CANCELLED.value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    async def _build_current_ride_driver(self, db: AsyncSession, driver_id, ride_type):
+        """Build the driver payload used by current_ride."""
+        if driver_id in (None, "", "None"):
+            return None
+        driver_obj = await UserAuthMethod(Driver).find_by_id(db, int(driver_id))
+        if not driver_obj:
+            return None
+
+        veh_obj = await UserAuthMethod(Vehicle).find_by_driver_id(db, int(driver_id))
+        driver_location = await RedisDriverRepo.get_driver_location(
+            driver_obj.id, ride_type
+        )
+
+        return {
+            "id": driver_obj.id,
+            "longitude": driver_location[0] if driver_location else None,
+            "latitude": driver_location[1] if driver_location else None,
+            "mobile": driver_obj.mobile,
+            "full_name": driver_obj.full_name,
+            "email": driver_obj.email,
+            "profile_image": (
+                f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
+                if driver_obj.profile_image is not None
+                else None
+            ),
+            "plate_number": veh_obj.plate_number if veh_obj else None,
+            "make": veh_obj.make if veh_obj else None,
+            "vehicle_type": veh_obj.vehicle_type if veh_obj else None,
+            "review": driver_obj.review,
+        }
+
     async def fetch_ride_status_service(
             self, db: AsyncSession, current_user: dict, ride_id: str
         ):
@@ -485,7 +541,7 @@ class RideDetailService(BaseResponseService):
             Args:
                 db (AsyncSession): Db Session
                 current_user (dict): user for which need to fetch the ride status.
-                ride_id (str): ride id for which need to fetch the status.
+                ride_id (str): ride id or ride_request_id for which need to fetch the status.
 
             """
             try:
@@ -501,66 +557,97 @@ class RideDetailService(BaseResponseService):
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.userNotFound
                     )
+
                 ride_key = f"ride:search:{ride_id}"
                 is_from_redis = await redis_client.exists(ride_key)
+                ride_req = {}
+                db_ride = None
 
-                # Fetch ride request
                 if is_from_redis:
-                    ride_req = await redis_client.hgetall(ride_key)
-                else:
-                    ride_req = jsonable_encoder(
-                        await UserAuthMethod(Ride).find_by_id(db, ride_id)
-                    )
+                    # ride_request_id lives only in Redis, never on the rides table.
+                    ride_req = await redis_client.hgetall(ride_key) or {}
+                    redis_ride_id = ride_req.get("ride_id")
+                    if redis_ride_id not in (None, "", "None"):
+                        db_ride = await UserAuthMethod(Ride).find_by_id(
+                            db, int(redis_ride_id)
+                        )
+                elif str(ride_id).isdigit():
+                    db_ride = await UserAuthMethod(Ride).find_by_id(db, int(ride_id))
+                    ride_req = jsonable_encoder(db_ride) if db_ride else {}
 
-                if not ride_req:
+                if not ride_req and not db_ride:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST, ErrorMessage.rideNotFound
                     )
 
-                status_value = ride_req.get("status")
-                status_info = RIDE_STATUS_INFO.get(int(status_value))
+                # After accept, Redis can stay at status=1 while DB is cancelled/reached.
+                # Prefer the rides row whenever we have a numeric ride_id.
+                if db_ride is not None:
+                    status_value = self._normalize_ride_status(db_ride.status)
+                    driver_id = db_ride.driver_id
+                    ride_type = db_ride.ride_type or ride_req.get("ride_type")
+                else:
+                    status_value = self._normalize_ride_status(ride_req.get("status"))
+                    driver_id = ride_req.get("driver_id")
+                    ride_type = ride_req.get("ride_type")
+
+                status_info = RIDE_STATUS_INFO.get(status_value)
+                if status_value is None or not status_info:
+                    return self.response(
+                        status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidRideStatus
+                    )
 
                 data = {
                     "title": status_info["title"],
                     "message": status_info["message"],
-                    "status": int(status_value),
+                    "status": status_value,
                 }
 
                 if is_from_redis:
-                    data["ride_request_id"] = ride_id  # the UUID param used as redis key
-                else:
-                    data["ride_id"] = ride_req.get("id")  # int PK from DB row
+                    data["ride_request_id"] = ride_id
+                if db_ride is not None:
+                    data["ride_id"] = db_ride.id
+                elif ride_req.get("id"):
+                    data["ride_id"] = ride_req.get("id")
+                elif ride_req.get("ride_id") not in (None, "", "None"):
+                    data["ride_id"] = int(ride_req.get("ride_id"))
 
-                if status_value in [
-                    RideStatusEnum.ACCEPTED.value,
-                    RideStatusEnum.REACHED.value,
-                    RideStatusEnum.STARTED.value,
-                ]:
-                    driver_obj = await UserAuthMethod(Driver).find_by_id(
-                        db, int(ride_req.get("driver_id"))
+                driver_id = driver_id or (
+                    await RedisRideRepo.get_assigned_driver(ride_id)
+                    if is_from_redis
+                    else None
+                )
+                if status_value in STATUSES_WITH_DRIVER and driver_id:
+                    driver_payload = await self._build_current_ride_driver(
+                        db, driver_id, ride_type
                     )
-                    veh_obj = await UserAuthMethod(Vehicle).find_by_driver_id(
-                        db, int(ride_req.get("driver_id"))
+                    if driver_payload:
+                        data["driver"] = driver_payload
+
+                if status_value == RideStatusEnum.CANCELLED.value:
+                    cancelled_by = (
+                        db_ride.cancelled_by
+                        if db_ride is not None
+                        else ride_req.get("cancelled_by")
                     )
-                    if driver_obj:
-                        driver_location = await RedisDriverRepo.get_driver_location(driver_obj.id, ride_req.get("ride_type"))
-                        data["driver"] = {
-                            "id": driver_obj.id,
-                            "longitude": driver_location[0] if driver_location else None,
-                            "latitude": driver_location[1] if driver_location else None,
-                            "mobile": driver_obj.mobile,
-                            "full_name": driver_obj.full_name,
-                            "email": driver_obj.email,
-                            "profile_image": (
-                                f"{aws_config.AWS_BASE_URL}{driver_obj.profile_image}"
-                                if driver_obj.profile_image is not None
-                                else None
-                            ),
-                            "plate_number": veh_obj.plate_number if veh_obj else None,
-                            "make": veh_obj.make if veh_obj else None,
-                            "vehicle_type": veh_obj.vehicle_type if veh_obj else None,
-                            "review": driver_obj.review,
-                        }
+                    cancellation_reason = (
+                        db_ride.cancellation_reason
+                        if db_ride is not None
+                        else ride_req.get("cancellation_reason")
+                    )
+                    cancellation_description = (
+                        db_ride.cancellation_description
+                        if db_ride is not None
+                        else ride_req.get("cancellation_description")
+                    )
+                    data["cancelled_by"] = cancelled_by
+                    data["cancellation_reason"] = cancellation_reason
+                    data["cancellation_description"] = cancellation_description
+                    if str(cancelled_by or "").lower() == UserTypeEnum.DRIVER.value:
+                        data["title"] = InfoMessage.rideCancelledTitle
+                        data["message"] = (
+                            cancellation_reason or InfoMessage.rideCancelled
+                        )
 
                 return self.response(
                     status.HTTP_200_OK, InfoMessage.rideStatusFetched, data
