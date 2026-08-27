@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from urllib.parse import parse_qs
@@ -12,15 +14,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import env_config
 from config.db_session import session_factory
-from config.redis_config import REDIS_BROKER_URL, SOCKET_CHANNEL, redis_client
+from config.redis_config import (
+    REDIS_BROKER_URL,
+    SOCKET_CHANNEL,
+    redis_client,
+    redis_pubsub_client,
+)
 from apps.v1.api.auth.models.attribute import UserTypeEnum
 from core.utils.helper import send_request
 from core.utils.message_variable import *
 from core.utils.session_auth import validate_token_session
 from core.utils.token_authentication import JWTOAuth2
 from core.redis_repo import RedisDriverRepo
-from apps.v1.api.ride.services.socket_emitter import RideSocketEmitter
 from workers.dispatch_worker import DISPATCH_WORKER_ENABLED, run_dispatch_worker
+
+LOG = logging.getLogger(__name__)
+REDIS_LISTENER_MAX_FAILURES = 8
+REDIS_LISTENER_MAX_BACKOFF_SECONDS = 15
 
 backend_url = env_config.BACKEND_URL
 
@@ -52,55 +62,91 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 
+async def _emit_socket_payload(raw_data):
+    """Parse a Redis pub/sub payload and emit it to the Socket.IO room."""
+    try:
+        payload = json.loads(raw_data)
+        event = payload.get("event")
+        data = payload.get("data")
+        room = payload.get("room")
+
+        if not event or data is None:
+            LOG.warning("Invalid socket payload: %s", payload)
+            return
+
+        if not room:
+            LOG.warning("Skipped '%s': no room in payload", event)
+            return
+
+        await sio.emit(event, data, room=room)
+        LOG.info("Emitted '%s' to room '%s'", event, room)
+    except json.JSONDecodeError:
+        LOG.exception("Failed to parse Redis socket message")
+    except Exception:
+        LOG.exception("Error emitting Redis socket message")
+
+
+async def _close_pubsub(pubsub):
+    if pubsub is None:
+        return
+    try:
+        await pubsub.unsubscribe(SOCKET_CHANNEL)
+    except Exception:
+        pass
+    try:
+        await pubsub.close()
+    except Exception:
+        pass
+
+
 async def redis_event_listener():
     """
     Listen to Redis Pub/Sub and emit Socket.IO events.
-    This bridges your FastAPI services to Socket.IO clients.
+
+    FastAPI publishes to SOCKET_CHANNEL; this process emits to connected clients.
+    Reconnects on Redis drops so the listener does not stay dead until a manual restart.
     """
-    pubsub = redis_client.pubsub()
-    try:
-        await pubsub.subscribe(SOCKET_CHANNEL)
-        print(f"Subscribed to Redis channel: {SOCKET_CHANNEL}")
+    backoff = 1
+    failures = 0
 
-        async for msg in pubsub.listen():
-            if msg["type"] == "subscribe":
-                print(f"Successfully subscribed to {msg['channel']}")
-                continue
+    while True:
+        pubsub = None
+        try:
+            pubsub = redis_pubsub_client.pubsub()
+            await pubsub.subscribe(SOCKET_CHANNEL)
+            LOG.info("Subscribed to Redis channel: %s", SOCKET_CHANNEL)
+            failures = 0
+            backoff = 1
 
-            if msg["type"] != "message":
-                continue
-
-            try:
-                # Parse the message payload
-                payload = json.loads(msg["data"])
-                event = payload.get("event")
-                data = payload.get("data")
-                room = payload.get("room")
-
-                if not event or data is None:
-                    print(f" Invalid payload: {payload}")
+            # timeout=None waits for the next Redis message and yields the
+            # event loop. Do not use timeout=0/1 — that busy-polls and pegs CPU.
+            while True:
+                msg = await pubsub.get_message(
+                    ignore_subscribe_messages=True,
+                    timeout=None,
+                )
+                if not msg or msg.get("type") != "message":
                     continue
+                await _emit_socket_payload(msg.get("data"))
 
-                # Emit to Socket.IO clients
-                if room:
-                    await sio.emit(event, data, room=room)
-                    print(f"Emitted '{event}' to room '{room}'")
-                else:
-                    print(f"Skipped '{event}': no room in payload (avoid global broadcast)")
-
-            except json.JSONDecodeError as e:
-                print(f"Failed to parse message: {e}")
-            except Exception as e:
-                print(f" Error handling message: {e}")
-
-    except asyncio.CancelledError:
-        print("Redis listener task cancelled")
-    except Exception as e:
-        print(f" Redis listener error: {e}")
-    finally:
-        await pubsub.unsubscribe(SOCKET_CHANNEL)
-        await pubsub.close()
-        print("Redis listener stopped")
+        except asyncio.CancelledError:
+            LOG.info("Redis listener task cancelled")
+            await _close_pubsub(pubsub)
+            raise
+        except Exception:
+            failures += 1
+            LOG.exception(
+                "Redis listener error (%s/%s)", failures, REDIS_LISTENER_MAX_FAILURES
+            )
+            await _close_pubsub(pubsub)
+            if failures >= REDIS_LISTENER_MAX_FAILURES:
+                LOG.critical(
+                    "Redis listener failed %s times; exiting so systemd can restart",
+                    failures,
+                )
+                os._exit(1)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, REDIS_LISTENER_MAX_BACKOFF_SECONDS)
 
 # Define event handlers
 @sio.event
@@ -238,16 +284,21 @@ async def driver_location_update(sid, data):
         )
 
         tracking = await RedisDriverRepo.get_driver_tracking(driver_id)
-        if tracking.get("user_id"):
-            await RideSocketEmitter.driver_location(
-                driver_id=driver_id,
-                lat=lat,
-                lng=lng,
-                user_id=tracking.get("user_id")
+        user_id = tracking.get("user_id")
+        if user_id:
+            await sio.emit(
+                "driver_location",
+                {
+                    "driver_id": driver_id,
+                    "lat": lat,
+                    "lng": lng,
+                },
+                room=f"user:{int(user_id)}",
             )
             print(
-            f"driver_location_update Successfully emitted 'driver_location' driver_id={driver_id}  lat={lat}  lng={lng}"
-        )
+                f"driver_location_update Successfully emitted 'driver_location' "
+                f"driver_id={driver_id}  lat={lat}  lng={lng}"
+            )
 
     except Exception as e:
         print("driver_location_update error: %s", str(e))
@@ -326,6 +377,10 @@ app.on_cleanup.append(cleanup_background_tasks)
 
 # Run the socket server
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     print("Socket.IO server is running")
     web.run_app(
         app, host=env_config.SOCKET_SERVER_HOST, port=int(env_config.SOCKET_SERVER_PORT)
