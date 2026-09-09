@@ -26,9 +26,8 @@ class DataBaseMethod:
             Returns the status of the operation (True/False).
         """
         try:
-            async with db.begin():  # Start a transaction asynchronously
-                db.add(validate_data)  # Add the object to the session
-                await db.flush()  # Asynchronously flush the changes to the database
+            db.add(validate_data)  # Add the object to the session
+            await db.flush()  # Asynchronously flush the changes to the database
             return constant_variable.STATUS_TRUE
         except Exception as err:
             print(err)
