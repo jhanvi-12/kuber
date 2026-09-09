@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.v1.api.auth.models.method import UserAuthMethod
 from apps.v1.api.auth.models.model import OtpVerification
 from apps.v1.api.base_service import BaseResponseService
-from apps.v1.api.sendgrid_email_service import send_otp_email
+from apps.v1.api.resend_email_service import send_otp_email
 from config import aws_config
 from core.utils import db_method
 from core.utils.message_variable import ErrorMessage, InfoMessage
@@ -95,29 +95,23 @@ class VerifyOtpService(BaseResponseService):
             email = body["email"]
 
             # Generate otp for the user
-            # TODO : when sendgrid email is available then uncomment it 
-            # otp_obj = await self.create_otp_code_service(db, email)
-            otp_code = 1234
-            otp_obj = OtpVerification(
-                email=email,
-                otp_code=otp_code
+            otp_obj = await self.create_otp_code_service(db, email)
+
+            if otp_obj.status_code != status.HTTP_200_OK:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
+                )
+            otp_code = json.loads(otp_obj.body)["data"]
+
+            # Send OTP to the user's email using Resend.
+            email_res = send_otp_email(
+                email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO
             )
-            db.add(otp_obj)
-            await db.commit()
 
-            # if otp_obj.status_code != status.HTTP_200_OK:
-            #     return self.response(
-            #         status.HTTP_400_BAD_REQUEST, ErrorMessage.otpGenerationFailed
-            #     )
-            # otp_code = json.loads(otp_obj.body)["data"]
-
-            # # Send OTP to the user's email using sendgrid.
-            # email_res = send_otp_email(email, str(otp_code["otp_code"]), aws_config.KUBER_LOGO)
-
-            # if not email_res:
-            #     return self.response(
-            #         status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
-            #     )
+            if not email_res:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.otpSendFailed
+                )
             return self.response(
                 status.HTTP_200_OK, InfoMessage.otpGenerationSuccess
             )
