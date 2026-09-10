@@ -126,6 +126,7 @@ class UserProfileService(BaseResponseService):
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.errorSavingUser
                 )
 
+            await db.commit()
             data = UserProfileSchema().dump(jsonable_encoder(user_obj))
             data["profile_image"] = (
                 f"{aws_config.AWS_BASE_URL}{data['profile_image']}"
