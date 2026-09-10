@@ -171,7 +171,7 @@ class DriverService(BaseResponseService):
                 InfoMessage.driverVehicleCreatedSuccess,
                 response_data,
             )
-
+            await db.commit()
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST,
@@ -306,7 +306,7 @@ class DriverService(BaseResponseService):
                 **driver_obj.__dict__,
                 "vehicle": existing_vehicle,
             }
-
+            await db.commit()
             data = jsonable_encoder(driver_vehicle_data)
             data.pop("password", None)
 
