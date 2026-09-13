@@ -165,13 +165,13 @@ class DriverService(BaseResponseService):
                 f"{aws_config.AWS_BASE_URL}{response_data['vehicle_insurance_image']}"
             )
             response_data["is_docs_verified"] = driver_obj.is_docs_verified
-
+            await db.commit()
             return self.response(
                 status.HTTP_201_CREATED,
                 InfoMessage.driverVehicleCreatedSuccess,
                 response_data,
             )
-            await db.commit()
+
         except Exception:
             return self.response(
                 status.HTTP_400_BAD_REQUEST,
@@ -260,7 +260,7 @@ class DriverService(BaseResponseService):
                     files["vehicle_image"],
                     f"{aws_config.S3_PATH_DRIVER_VEHICLE_IMAGE}{uuid.uuid4()}",
                 )
-                driver_obj.vehicle_image = vehicle_image_url
+                existing_vehicle.vehicle_image = vehicle_image_url
                 if not vehicle_image_url:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST,
@@ -273,7 +273,7 @@ class DriverService(BaseResponseService):
                     files["vehicle_insurance_image"],
                     f"{aws_config.S3_PATH_DRIVER_VEHICLE_INSURANCE_IMAGE}{uuid.uuid4()}",
                 )
-                driver_obj.vehicle_insurance_image = insurance_image_url
+                existing_vehicle.vehicle_insurance_image = insurance_image_url
                 if not insurance_image_url:
                     return self.response(
                         status.HTTP_400_BAD_REQUEST,

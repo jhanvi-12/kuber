@@ -98,6 +98,8 @@ class DriverPlanService(BaseResponseService):
                     expired_plans.append(plan)
 
             if expired_count > 0:
+                await db.commit()
+
                 driver_ids = [plan.driver_id for plan in expired_plans]
                 drivers = await PlansMethod(Driver).find_plan_by_driver_id_list(db, driver_ids)
                 print("Expired Drivers:", drivers)
@@ -105,7 +107,7 @@ class DriverPlanService(BaseResponseService):
                 title = "Your plan has been expired"
                 body = "Please select a new plan to continue using the service."
                 await DriverFirebaseNotification().send_notification_to_drivers(drivers, title, body)
-         
+
                 return self.response(
                     status.HTTP_200_OK,
                     InfoMessage.plansChecked,
