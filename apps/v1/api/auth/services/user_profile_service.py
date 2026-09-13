@@ -60,7 +60,7 @@ class UserProfileService(BaseResponseService):
                 res["total_earnings"] = round(
                     await DataBaseMethod(Ride).sum(
                         db,
-                        "ride_fare",
+                        "total_fare",
                         {
                             "driver_id": user_obj.id,
                             "status": RideStatusEnum.COMPLETED.value,

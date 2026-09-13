@@ -453,7 +453,7 @@ class RideDetailService(BaseResponseService):
             serialized_data = DriverRidesResponseSchema().dump(ride_obj)
             total_earnings = await DataBaseMethod(Ride).sum(
                 db,
-                "ride_fare",
+                "total_fare",
                 {
                     "driver_id": driver_id,
                     "status": RideStatusEnum.COMPLETED.value,
