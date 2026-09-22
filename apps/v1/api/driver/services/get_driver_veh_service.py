@@ -93,6 +93,7 @@ class GetDriverService(BaseResponseService):
         current_user: dict,
         page: int = 1,
         search_query: str = None,
+        limit: int = 5,
     ):
         """This method is used to fetch the drivers list with pagination response."""
         try:
@@ -106,7 +107,7 @@ class GetDriverService(BaseResponseService):
 
             drivers_data = await UserAuthMethod(
                 Driver
-            ).find_drivers_list_with_pagination(db, page, search_query)
+            ).find_drivers_list_with_pagination(db, page, search_query, limit)
 
             data = DriverListResponseSchema().dump(drivers_data)
 

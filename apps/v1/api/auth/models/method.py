@@ -310,9 +310,9 @@ class UserAuthMethod:
                 "total_trips": total_count
             }
 
-    async def find_drivers_list_with_pagination(self, db: AsyncSession, page, search_query):
+    async def find_drivers_list_with_pagination(self, db: AsyncSession, page, search_query, limit=5):
         """This method is used the fetch the drivers list with search and pagination response."""
-        page_limit = 5
+        page_limit = limit
         async with db:
             stmt = select(self.model)
             # Pagination calc
