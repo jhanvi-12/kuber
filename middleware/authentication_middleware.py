@@ -60,8 +60,13 @@ class AuthenticateMiddleware(BaseHTTPMiddleware):
             "/v1/auth/reset_password",
             "/v1/driver/check/plan_expiry",
         ]
+        # Public force-update check on Splash (GET only). POST /version stays protected.
+        if request.url.path == "/v1/app/version" and request.method == "GET":
+            return await call_next(request)
+
         if request.url.path in excluded_paths:
             return await call_next(request)
+
 
         # Extract the session_id from the Authorization header
         jwt_token = request.headers.get("Authorization")

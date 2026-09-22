@@ -71,6 +71,8 @@ class InfoMessage:
     driverDetailsFetched = "Driver details fetched successfully!"
     rideRequested = "Ride requested successfully!"
     rideRequestedMsg = "Your ride request has been sent. We are searching for available drivers in your area."
+    appVersionRetrieved = "App version config retrieved successfully!"
+    appVersionUpdated = "App version config updated successfully!"
 
 class ErrorMessage:
     """This class represents a user error message."""
@@ -151,3 +153,5 @@ class ErrorMessage:
     noActiveSession = "No active session found for this account."
     tooManyRequests = "Too many requests. Please try again later."
     loginAttemptsExceeded = "Too many login attempts. Try again after 24 hours."
+    appVersionNotFound = "App version config not found for the given app type and platform."
+    appVersionUpdateFailed = "Failed to update app version config."
