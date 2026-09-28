@@ -232,6 +232,7 @@ async def driver_my_rides_api(
 async def drivers_list_api(
     db: AsyncSession = Depends(getdb),
     page: int = Query(1, ge=1),
+    limit: int = Query(5, ge=1, le=100),
     search: str | None = Query(None),
     authorize: HTTPAuthorizationCredentials = Depends(oauth2)
 ):
@@ -243,7 +244,8 @@ async def drivers_list_api(
         db,
         current_user,
         page,
-        search
+        search,
+        limit
     )
     return response
 

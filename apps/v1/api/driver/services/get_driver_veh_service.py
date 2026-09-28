@@ -3,6 +3,7 @@
 from datetime import datetime
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
@@ -93,6 +94,7 @@ class GetDriverService(BaseResponseService):
         current_user: dict,
         page: int = 1,
         search_query: str = None,
+        limit: int = 5,
     ):
         """This method is used to fetch the drivers list with pagination response."""
         try:
@@ -113,6 +115,7 @@ class GetDriverService(BaseResponseService):
             drivers_data["only_register_counts"] = await UserAuthMethod(
                 Driver
             ).count_drivers_by_doc_status(db, int(DriverStatusEnum.INITIAL.value))
+
 
             data = DriverListResponseSchema().dump(drivers_data)
 
@@ -144,7 +147,7 @@ class GetDriverService(BaseResponseService):
         try:
             # --- Validate admin ---
             admin_id = current_user.get("user_id")
-            admin_obj = await UserAuthMethod(Admin).find_by_id(db, admin_id)
+            admin_obj = await self._find_active_by_id(db, Admin, admin_id)
             if not admin_obj:
                 return self.response(status.HTTP_403_FORBIDDEN, ErrorMessage.adminNotFound)
 
@@ -153,11 +156,12 @@ class GetDriverService(BaseResponseService):
             if not driver_id:
                 return self.response(status.HTTP_400_BAD_REQUEST, ErrorMessage.drivernotFound)
 
-            driver_obj = await UserAuthMethod(Driver).find_by_id(db, driver_id)
+            driver_obj = await self._find_active_by_id(db, Driver, driver_id)
             if not driver_obj:
                 return self.response(status.HTTP_404_NOT_FOUND, ErrorMessage.driverNotFound)
 
-            veh_obj = await VehicleMethod(Vehicle).find_by_driver_id(db, driver_id)
+            veh_obj = await self._find_vehicle_by_driver_id(db, driver_id)
+            # Block both approve and reject until the driver has saved vehicle details.
             if not self._has_required_vehicle_details(driver_obj, veh_obj):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.vehicleDetailsRequired
@@ -215,6 +219,26 @@ class GetDriverService(BaseResponseService):
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ErrorMessage.generalTryAgain
             )
+
+    @staticmethod
+    async def _find_active_by_id(db: AsyncSession, model, record_id: int):
+        """Load one active row without closing the request session."""
+        stmt = select(model).where(
+            model.id == record_id,
+            model.deleted_at == constant.STATUS_NULL,
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    @staticmethod
+    async def _find_vehicle_by_driver_id(db: AsyncSession, driver_id: int):
+        """Load the driver's vehicle without closing the request session."""
+        stmt = select(Vehicle).where(
+            Vehicle.driver_id == driver_id,
+            Vehicle.deleted_at == constant.STATUS_NULL,
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
     @staticmethod
     def _has_required_vehicle_details(driver_obj, veh_obj) -> bool:
