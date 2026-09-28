@@ -4,8 +4,16 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
+from apps.v1.api.auth.models.attribute import OtpTypeEnum
 from core.utils import constant_variable as constant
 from core.utils.validation import ValidationMethods
+
+
+def _validate_otp_type(value):
+    """Allow only register (1) and forgot password (2)."""
+    if value not in (OtpTypeEnum.REGISTER.value, OtpTypeEnum.FORGOT_PASSWORD.value):
+        raise ValueError("otp_type must be 1 for register or 2 for forgot password.")
+    return value
 
 
 class CreateRegisterSchema(BaseModel):
@@ -141,6 +149,7 @@ class ForgotPasswordSchema(BaseModel):
     """Schema for forgot password request."""
 
     email: EmailStr
+    otp_type: int
 
     model_config = ConfigDict(
         from_attributes=constant.STATUS_TRUE,
@@ -148,9 +157,15 @@ class ForgotPasswordSchema(BaseModel):
         json_schema_extra={
             "example": {
                 "email": "johnsmith@gmail.com",
+                "otp_type": 2,
             }
         },
     )
+
+    @field_validator("otp_type")
+    def otp_type_validation(cls, v):
+        """1 is register, 2 is forgot password."""
+        return _validate_otp_type(v)
 
 
 class VerifyOtpSchema(BaseModel):
@@ -158,6 +173,7 @@ class VerifyOtpSchema(BaseModel):
 
     email: EmailStr
     otp: int
+    otp_type: int
 
     class Config:
         """This class is the schema for user configuration."""
@@ -169,9 +185,15 @@ class VerifyOtpSchema(BaseModel):
                 "example": {
                     "email": "abc@example.com",
                     "otp": 1234,
+                    "otp_type": 1,
                 }
             },
         )
+
+    @field_validator("otp_type")
+    def otp_type_validation(cls, v):
+        """1 is register, 2 is forgot password."""
+        return _validate_otp_type(v)
 
 
 class ResetPasswordSchema(BaseModel):
@@ -221,13 +243,21 @@ class RequestOtpSchema(BaseModel):
     """Schema for requesting OTP."""
 
     email: EmailStr
+    otp_type: int
 
     class Config:
         """Schema configuration."""
 
         extra = "forbid"
         from_attributes = constant.STATUS_TRUE
-        json_schema_extra = {"example": {"email": "hopper@gmail.com"}}
+        json_schema_extra = {
+            "example": {"email": "hopper@gmail.com", "otp_type": 1}
+        }
+
+    @field_validator("otp_type")
+    def otp_type_validation(cls, v):
+        """1 is register, 2 is forgot password."""
+        return _validate_otp_type(v)
 
 
 class ChangeNumberSchema(BaseModel):

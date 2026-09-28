@@ -12,9 +12,9 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 from werkzeug.security import generate_password_hash
 
-from apps.v1.api.auth.models.attribute import UserTypeEnum
+from apps.v1.api.auth.models.attribute import OtpTypeEnum, UserTypeEnum
 from apps.v1.api.auth.models.method import UserAuthMethod
-from apps.v1.api.auth.models.model import User
+from apps.v1.api.auth.models.model import OtpVerification, User
 from apps.v1.api.auth.serializer import RegisterResSchema
 from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
@@ -48,9 +48,20 @@ class SignUpService(BaseResponseService):
         """
         try:
             ValidationMethods().validate_password(body["password"])
+            ValidationMethods().validate_email_domain(body["email"])
             if not ValidationMethods().validate_number(body["mobile"], num_type="mobile"):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.invalidMobileNumber
+                )
+
+            verified_otp = await UserAuthMethod(
+                OtpVerification
+            ).find_verified_register_otp(
+                db, body["email"], OtpTypeEnum.REGISTER.value
+            )
+            if not verified_otp:
+                return self.response(
+                    status.HTTP_400_BAD_REQUEST, ErrorMessage.registerOtpNotVerified
                 )
 
             if user_type.value == UserTypeEnum.CUSTOMER.value:
@@ -94,6 +105,12 @@ class SignUpService(BaseResponseService):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
                 )
+
+            if user_type.value == UserTypeEnum.DRIVER.value:
+                verified_otp.driver_id = user_obj.id
+            else:
+                verified_otp.user_id = user_obj.id
+            db.add(verified_otp)
 
             # Commit the transaction so that the changes are saved in the database.
             # TODO :- commit after all opertaions like otp generation and email sending.
