@@ -108,7 +108,7 @@ class GetDriverService(BaseResponseService):
 
             drivers_data = await UserAuthMethod(
                 Driver
-            ).find_drivers_list_with_pagination(db, page, search_query)
+            ).find_drivers_list_with_pagination(db, page, search_query, limit)
             drivers_data["only_pending_counts"] = await UserAuthMethod(
                 Driver
             ).count_drivers_by_doc_status(db, int(DriverStatusEnum.PENDING.value))
