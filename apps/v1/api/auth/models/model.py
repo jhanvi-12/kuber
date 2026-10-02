@@ -114,6 +114,18 @@ class OtpVerification(Base):
         doc="Driver id associated with the OtpVerification.",
     )
     otp_code = Column(Integer, nullable=constant.STATUS_FALSE, doc="Otp code.")
+    otp_type = Column(
+        Integer,
+        nullable=constant.STATUS_FALSE,
+        doc="1 for register OTP, 2 for forgot password OTP",
+    )
+    is_verified = Column(
+        Boolean,
+        nullable=constant.STATUS_FALSE,
+        default=constant.STATUS_FALSE,
+        server_default="0",
+        doc="True after the OTP code is verified",
+    )
     created_at = Column(
         DateTime,
         default=datetime.now,

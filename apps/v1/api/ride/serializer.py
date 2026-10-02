@@ -88,3 +88,5 @@ class DriverListResponseSchema(Schema):
     total = fields.Int()
     page = fields.Int()
     limit = fields.Int()
+    only_pending_counts = fields.Int(required=False)
+    only_register_counts = fields.Int(required=False)

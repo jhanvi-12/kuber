@@ -172,9 +172,7 @@ async def forgot_password_api(
     Returns:
         StandardResponse: The response object with status and message.
     """
-    response = await VerifyOtpService().request_otp_service(
-        db, body
-    )
+    response = await VerifyOtpService().request_otp_service(db, body)
     return response
 
 

@@ -58,6 +58,15 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_active_by_email_ci(self, db: AsyncSession, email: str):
+        """Return an active account whose email matches, ignoring letter case."""
+        stmt = select(self.model).where(
+            func.lower(self.model.email) == email.strip().lower(),
+            self.model.deleted_at == constant.STATUS_NULL,
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
     async def find_latest_by_email(self, db: AsyncSession, email: str):
         """Return the latest account for an email, including soft-deleted rows.
 
@@ -159,21 +168,51 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
-    async def find_by_user_email(self, db: AsyncSession, email: str, otp_code: int):
-        """This function will return the user objects by user_ids asynchronously."""
-        async with db:  # Ensure the session context
-            stmt = (
-                select(self.model)
-                .where(
-                    self.model.email == email,
-                    self.model.otp_code == otp_code,
-                    self.model.expires_at > datetime.now(),
-                    self.model.deleted_at == constant.STATUS_NULL,
-                )
-                .order_by(self.model.expires_at.desc())
+    async def find_by_user_email(
+        self, db: AsyncSession, email: str, otp_code: int, otp_type: int
+    ):
+        """Return the latest unexpired OTP for this email, code, and flow type."""
+        stmt = (
+            select(self.model)
+            .where(
+                func.lower(self.model.email) == email.strip().lower(),
+                self.model.otp_code == otp_code,
+                self.model.otp_type == otp_type,
+                self.model.expires_at > datetime.now(),
+                self.model.deleted_at == constant.STATUS_NULL,
             )
-            result = await db.execute(stmt)
-            return result.scalars().all()
+            .order_by(self.model.expires_at.desc())
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def find_verified_register_otp(self, db: AsyncSession, email: str, otp_type: int):
+        """Return the latest verified OTP for this email and flow type."""
+        stmt = (
+            select(self.model)
+            .where(
+                func.lower(self.model.email) == email.strip().lower(),
+                self.model.otp_type == otp_type,
+                self.model.is_verified == constant.STATUS_TRUE,
+                self.model.deleted_at == constant.STATUS_NULL,
+            )
+            .order_by(self.model.id.desc())
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def count_drivers_by_doc_status(self, db: AsyncSession, docs_status: int):
+        """Count drivers with the given document status, excluding deleted accounts."""
+        stmt = (
+            select(func.count())
+            .select_from(self.model)
+            .where(
+                self.model.is_docs_verified == docs_status,
+                self.model.deleted_at == constant.STATUS_NULL,
+            )
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one()
 
     async def create_or_find_device_token(
         self,

@@ -12,6 +12,49 @@ from core.utils import constant_variable
 
 
 class ValidationMethods:
+    # Misspellings of common mail providers. Real domains such as gmail.com stay allowed.
+    TYPO_EMAIL_DOMAINS = frozenset({
+        "gmai.com",
+        "gmal.com",
+        "gmial.com",
+        "gmaill.com",
+        "gamil.com",
+        "gmail.co",
+        "gmail.con",
+        "gmail.cm",
+        "gmail.om",
+        "gnail.com",
+        "gmil.com",
+        "gmeil.com",
+        "gmali.com",
+        "gemail.com",
+        "yahooo.com",
+        "yaho.com",
+        "yahoo.co",
+        "yahoo.con",
+        "yhaoo.com",
+        "yahho.com",
+        "outlok.com",
+        "outloo.com",
+        "outlook.co",
+        "outlook.con",
+        "outllok.com",
+        "outloook.com",
+        "hotmal.com",
+        "hotmial.com",
+        "hotmail.co",
+        "hotmail.con",
+        "hotmai.com",
+    })
+
+    def validate_email_domain(self, email: str) -> str:
+        """Reject known typo domains such as gmai.com."""
+        email = (email or "").strip()
+        domain = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
+        if not domain or domain in self.TYPO_EMAIL_DOMAINS:
+            raise ValueError("Please enter a valid email address.")
+        return email
+
     def not_null_validator(self, v, field):
         if v == [] or v == {} or v == "":
             raise ValueError(f"{field} must be required")
