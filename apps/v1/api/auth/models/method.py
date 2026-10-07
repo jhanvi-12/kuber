@@ -5,7 +5,7 @@ from sqlalchemy import case, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from apps.v1.api.ride.models.attribute import RideStatusEnum
-from core.utils import constant_variable as constant
+from core.utils import DateTimeUtils, constant_variable as constant
 
 class UserAuthMethod:
     """This class defines methods to authenticate users."""
@@ -193,7 +193,7 @@ class UserAuthMethod:
                 func.lower(self.model.email) == email.strip().lower(),
                 self.model.otp_code == otp_code,
                 self.model.otp_type == otp_type,
-                self.model.expires_at > datetime.now(),
+                self.model.expires_at > DateTimeUtils.get_time().replace(tzinfo=None),
                 self.model.deleted_at == constant.STATUS_NULL,
             )
             .order_by(self.model.expires_at.desc())

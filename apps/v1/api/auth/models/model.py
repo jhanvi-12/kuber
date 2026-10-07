@@ -6,7 +6,7 @@ Classes:
     User: A model representing a user in the system.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.sql import text
 from sqlalchemy import (
     Boolean,
@@ -25,7 +25,7 @@ from apps.v1.api.auth.models.attribute import UserTypeEnum
 from config.db_session import Base
 from core.db.mixins.timestamp_mixin import TimestampMixin
 from core.utils import constant_variable as constant
-
+from core.utils import DateTimeUtils
 
 class User(TimestampMixin, Base):
     """
@@ -89,7 +89,7 @@ class User(TimestampMixin, Base):
     )
 
 
-class OtpVerification(Base):
+class OtpVerification(TimestampMixin, Base):
     """
     Table is responsible for creating OtpVerification model and attributes.
     """
@@ -134,24 +134,11 @@ class OtpVerification(Base):
         server_default="0",
         doc="True after the OTP code is verified",
     )
-    created_at = Column(
-        DateTime,
-        default=datetime.now,
-        nullable=False,
-    )
-    updated_at = Column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
-    )
     expires_at = Column(
         DateTime,
-        default=lambda: datetime.now() + timedelta(minutes=constant.STATUS_FIVE),
+        default=lambda: DateTimeUtils.get_time().replace(tzinfo=None)
+        + timedelta(minutes=constant.STATUS_FIVE),
         nullable=False,
-    )
-    deleted_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
     )
 
 class Admin(TimestampMixin, Base):
