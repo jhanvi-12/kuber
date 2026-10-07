@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.v1.api.auth.view import authrouter
 from apps.v1.api.driver.view import driverrouter
 from apps.v1.api.ride.view import riderouter
+from apps.v1.api.app_version.view import appversionrouter
 from config import project_path
 from core.utils import constant_variable
 from middleware import S3PathMiddleware
@@ -43,6 +44,9 @@ def init_routers(app_: FastAPI) -> None:
     )
     app_.include_router(
         riderouter, prefix=f"{constant_variable.API_V1}/user", tags=["Ride"]
+    )
+    app_.include_router(
+        appversionrouter, prefix=f"{constant_variable.API_V1}/app", tags=["App Version"]
     )
 
 def make_middleware() -> list[Middleware]:

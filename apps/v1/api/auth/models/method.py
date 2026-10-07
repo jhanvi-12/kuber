@@ -168,6 +168,21 @@ class UserAuthMethod:
             result = await db.execute(stmt)
             return result.scalars().first()
 
+    async def find_by_email_and_otp_type(
+        self, db: AsyncSession, email: str, otp_type: int
+    ):
+        """Return the latest OTP row for this email and flow type, including soft-deleted."""
+        stmt = (
+            select(self.model)
+            .where(
+                func.lower(self.model.email) == email.strip().lower(),
+                self.model.otp_type == otp_type,
+            )
+            .order_by(self.model.id.desc())
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
     async def find_by_user_email(
         self, db: AsyncSession, email: str, otp_code: int, otp_type: int
     ):

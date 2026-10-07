@@ -25,10 +25,14 @@
       <a href="#getting-started">Getting Started</a>
       <ul>
         <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#install-poetry">Install Poetry</a></li>
         <li><a href="#installation">Installation</a></li>
+        <li><a href="#poetry-commands">Poetry commands</a></li>
       </ul>
     </li>
-    <li><a href="#license">License</a></li>
+    <li><a href="#run-the-server">Run the server</a></li>
+    <li><a href="#database-migrations">Database migrations</a></li>
+    <li><a href="#tests">Tests</a></li>
   </ol>
 </details>
 
@@ -46,238 +50,192 @@ Kuber Backend project is an application to book your ride with ease.
 <!-- GETTING STARTED -->
 ## Getting Started
 
-Instructions for setting up project locally.
-To get a local copy up and running follow these simple steps.
+Local setup uses Poetry for dependencies, MySQL for the database, and Redis for sockets and ride dispatch.
 
-## Install + configure the project
-
-### 1. Linux
 ### Prerequisites
 
-Requirement of Project
-* Install Python 
-  ```sh
-  Python-Version : 3.12
-  ```
-* Create python virtual environment
-  ```sh
-  python3 -m venv venv
-  ```
-* Activate the python virtual environment
-  ```sh
-  source venv/bin/activate
-  ```
+* Python 3.12
+* [Poetry](https://python-poetry.org/)
+* MySQL
+* Redis
+
+Check Python:
+
+```bash
+python --version
+```
+
+### Install Poetry
+
+Linux or macOS:
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+Windows (PowerShell):
+
+```powershell
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+```
+
+If `poetry` is not recognized, add it to PATH:
+
+* Linux/macOS: `$HOME/.local/bin`
+* Windows: `%APPDATA%\Python\Scripts`
+
+Confirm the install:
+
+```bash
+poetry --version
+```
 
 ### Installation
 
-1. Clone the repo
-   ```sh
+1. Clone the repo and move into it
+
+   ```bash
    git clone https://github.com/jhanvi-12/kuber.git
+   cd kuber
    ```
-2. Upgrade pip version
-    ```sh
-   python -m pip install --upgrade pip==22.1.2
-    ```
 
-3. Poetry Installation Guide
-    ```sh
-    This guide provides detailed instructions on how to set up and use [Poetry](https://python-poetry.org/) for managing dependencies and environments in your Python project.
+2. Install dependencies from `pyproject.toml`
 
-    ## What is Poetry?
-
-    Poetry is a dependency management and packaging tool for Python. It simplifies the process of managing project dependencies, virtual environments, and publishing packages.
-
-    Key features:
-    - Dependency resolution.
-    - Virtual environment management.
-    - Project packaging and publishing.
-
-    ## Prerequisites
-
-    - **Python**: Ensure Python is installed on your system. Poetry supports Python 3.7 and above.
-    - **Pip**: The Python package manager should also be installed.
-
-    You can verify installations using the following commands:
-    ```bash
-    python --version
-    pip --version
-    ```
-
-    ## Installing Poetry
-
-    ### 1. Using the Official Installer
-
-    Run the following command to install Poetry:
-
-    ```bash
-    curl -sSL https://install.python-poetry.org | python3 -
-    ```
-
-    ### 2. Verifying Installation
-
-    Once installed, verify Poetry by running:
-
-    ```bash
-    poetry --version
-    ```
-
-    This should display the installed version of Poetry.
-
-    ### 3. Adding Poetry to Your PATH
-
-    If Poetry is not recognized, ensure it is added to your system PATH. By default, Poetry is installed in:
-    - **Unix/macOS**: `$HOME/.local/bin`
-    - **Windows**: `%APPDATA%\Python\Scripts`
-
-    Add this directory to your PATH.
-
-    ## Setting Up Poetry in a Project
-
-    ### 1. Initialize a New Project
-
-    Navigate to your project directory and run:
-
-    ```bash
-    poetry init
-    ```
-
-    Follow the prompts to define your project metadata (e.g., package name, version, description).
-
-    ### 2. Adding Dependencies
-
-    To add dependencies:
-
-    ```bash
-    poetry add <package-name>
-    ```
-
-    Example:
-
-    ```bash
-    poetry add requests
-    ```
-
-    To add development dependencies:
-
-    ```bash
-    poetry add --dev <package-name>
-    ```
-
-    ### 3. Installing Dependencies
-
-    Install all dependencies defined in `pyproject.toml`:
-
-    ```bash
-    poetry install
-    ```
-
-    ### 4. Using Virtual Environments
-
-    Poetry automatically creates a virtual environment for your project. To activate it:
-
-    ```bash
-    poetry shell
-    ```
-
-    To deactivate, simply exit the shell:
-
-    ```bash
-    exit
-    ```
-
-    ## Managing Your Project
-
-    ### Updating Dependencies
-
-    To update dependencies to their latest compatible versions:
-
-    ```bash
-    poetry update
-    ```
-
-    ### Listing Installed Packages
-
-    To list all installed packages and their versions:
-
-    ```bash
-    poetry show
-    ```
-
-    ### Publishing Your Package
-
-    If you’re packaging your project, publish it to PyPI with:
-
-    ```bash
-    poetry publish --build
-    ```
-
-    ## Uninstalling Poetry
-
-    To uninstall Poetry, remove its files:
-
-    ```bash
-    curl -sSL https://install.python-poetry.org | python3 - --uninstall
-    ```
-
-### Use the alembic to Upgrade/Downgrade the database in the FastAPI
-  Note: Because by default Fastapi is provide only initial migrations. 
-  It doesn't support the upgrade and downgrade the database.
-   so,to perform automatic migrations follow the following steps:
-
-
-1. To create Migration folder
-    ```
-    python -m alembic init migrations
-    ```
-2. Update the sqlalchemy.url into alembic.ini file
-    ```
-    sqlalchemy.url = mysql+pymysql://user:pass@host/db_name
-    ```
-
-3. update the Migrations>>env.py file o auto migrate the database.
-    ```
-    from models import Base 
-    target_database = Base.metadata
-    ```
-
-4. Perform the initial migrations
-    ```
-    alembic revision --autogenerate -m 'initials'
-    ```
-
-5. Apply the changes into the database (upgrade the database)
-    ```
-    alembic upgrade head
-    ```
-
-6. To downgrade the database if required
-    ```
-    alembic downgrade -1
-    ```
-
-## Additional Resources
-
-- [Poetry Documentation](https://python-poetry.org/docs/)
-- [Poetry GitHub Repository](https://github.com/python-poetry/poetry)
-
-With this setup, you can efficiently manage Python project dependencies and environments using Poetry. Happy coding!
-
-
-## Run the server in development mode
- 
-Add environment variables (given in .env) by running following command in cmd/terminal:
-
-Run the server
+   ```bash
+   poetry install
    ```
-   python asgi.py
-   ```
-Browse Swagger API Doc at: http://localhost:8000/docs
 
-Browse  Redoc at: http://localhost:8000/redoc
+3. Create a `.env` file in the project root. The app reads it on startup. Required groups:
 
-Browse Swagger API Doc for version v1 at: http://localhost:8000/v1/docs
+   * Database: `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_HOST`, `DATABASE_PORT`
+   * Redis: `REDIS_HOST`, `REDIS_PORT`
+   * Server: `SERVER_HOST`, `SERVER_PORT`
+   * Auth: `JWT_SECRET_KEY`, `JWT_ALGORITHM`
+   * Socket: `SOCKET_SERVER_HOST`, `SOCKET_SERVER_PORT`
 
-Browse Swagger API Doc for version v2 at: http://localhost:8000/v2/docs
+4. Create the MySQL database named in `DATABASE_NAME`, then apply migrations (see below).
+
+### Poetry commands
+
+Run a command inside the project virtual environment:
+
+```bash
+poetry run <command>
+```
+
+Add a package:
+
+```bash
+poetry add <package-name>
+```
+
+Add a development-only package:
+
+```bash
+poetry add --group dev <package-name>
+```
+
+Update locked dependencies:
+
+```bash
+poetry update
+```
+
+Show installed packages:
+
+```bash
+poetry show
+```
+
+Show the virtualenv path:
+
+```bash
+poetry env info
+```
+
+Activate the virtualenv in the current shell (Poetry 2):
+
+```bash
+poetry env activate
+```
+
+On older Poetry versions:
+
+```bash
+poetry shell
+```
+
+## Run the server
+
+From the project root, with `.env` in place and MySQL and Redis running:
+
+```bash
+poetry run python asgi.py
+```
+
+This starts the API and Socket.IO together.
+
+* Swagger: http://localhost:8000/docs
+* ReDoc: http://localhost:8000/redoc
+
+Optional flags:
+
+```bash
+poetry run python asgi.py --env local
+poetry run python asgi.py --env dev --debug
+```
+
+Run the Socket.IO server on its own (uses `SOCKET_SERVER_HOST` and `SOCKET_SERVER_PORT`):
+
+```bash
+poetry run python socket_server.py
+```
+
+## Database migrations
+
+Migrations live in `migrations/`. Run Alembic through Poetry so it uses the project environment.
+
+Set `sqlalchemy.url` in `alembic.ini` to the same MySQL database as `.env`, using the sync driver:
+
+```text
+sqlalchemy.url = mysql+pymysql://user:password@localhost:3306/db_name
+```
+
+Apply all migrations:
+
+```bash
+poetry run python -m alembic upgrade head
+```
+
+See the current revision:
+
+```bash
+poetry run python -m alembic current
+```
+
+Create a new migration after model changes:
+
+```bash
+poetry run python -m alembic revision --autogenerate -m "describe the change"
+```
+
+Undo the last migration:
+
+```bash
+poetry run python -m alembic downgrade -1
+```
+
+## Tests
+
+```bash
+poetry run pytest
+```
+
+## Additional resources
+
+* [Poetry documentation](https://python-poetry.org/docs/)
+* [FastAPI documentation](https://fastapi.tiangolo.com/)
+* [Alembic documentation](https://alembic.sqlalchemy.org/)
 
 ## Release History
 
@@ -287,6 +245,6 @@ Browse Swagger API Doc for version v2 at: http://localhost:8000/v2/docs
    
 <!-- MARKDOWN LINKS & IMAGES -->
 [Python]: https://img.shields.io/badge/Python-000000?style=for-the-badge&logo=python&logoColor=Blue
-[Python-url]: https://docs.python.org/3.10/
+[Python-url]: https://docs.python.org/3.12/
 [FastAPI]: https://img.shields.io/badge/FastAPI-20232A?style=for-the-badge&logo=fastapi&logoColor=009485
 [FastAPI-url]: https://fastapi.tiangolo.com/

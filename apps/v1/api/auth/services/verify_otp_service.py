@@ -1,6 +1,7 @@
 """This module is responsible for the OTP services"""
 
 import json
+from datetime import datetime, timedelta
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,6 +61,7 @@ class VerifyOtpService(BaseResponseService):
         """
         Generates and saves a one-time password (OTP) for the given email.
 
+        Reuses the existing row for the same email and otp_type when present.
         The account does not exist yet for a register OTP, so user_id and
         driver_id stay empty until register links them.
 
@@ -73,12 +75,26 @@ class VerifyOtpService(BaseResponseService):
         """
         try:
             otp_code = self.generate_otp_code()
-            otp_obj = OtpVerification(
-                email=email,
-                otp_code=otp_code,
-                otp_type=otp_type,
-                is_verified=False,
+            existing = await UserAuthMethod(OtpVerification).find_by_email_and_otp_type(
+                db, email, otp_type
             )
+            expires_at = datetime.now() + timedelta(minutes=constant.STATUS_FIVE)
+
+            if existing:
+                existing.otp_code = otp_code
+                existing.is_verified = constant.STATUS_FALSE
+                existing.expires_at = expires_at
+                existing.updated_at = datetime.now()
+                existing.deleted_at = constant.STATUS_NULL
+                otp_obj = existing
+            else:
+                otp_obj = OtpVerification(
+                    email=email,
+                    otp_code=otp_code,
+                    otp_type=otp_type,
+                    is_verified=False,
+                    expires_at=expires_at,
+                )
             if not await db_method.DataBaseMethod(OtpVerification).save(otp_obj, db):
                 return self.response(
                     status.HTTP_400_BAD_REQUEST, ErrorMessage.internalServerErr
