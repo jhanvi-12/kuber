@@ -1,7 +1,7 @@
 """This module is responsible for the OTP services"""
 
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from apps.v1.api.base_service import BaseResponseService
 from apps.v1.api.driver.models.model import Driver
 from apps.v1.api.resend_email_service import send_otp_email
 from config import aws_config
-from core.utils import db_method
+from core.utils import DateTimeUtils, db_method
 from core.utils.message_variable import ErrorMessage, InfoMessage
 from core.utils import constant_variable as constant
 
@@ -78,13 +78,14 @@ class VerifyOtpService(BaseResponseService):
             existing = await UserAuthMethod(OtpVerification).find_by_email_and_otp_type(
                 db, email, otp_type
             )
-            expires_at = datetime.now() + timedelta(minutes=constant.STATUS_FIVE)
+            now_ist = DateTimeUtils.get_time().replace(tzinfo=None)
+            expires_at = now_ist + timedelta(minutes=constant.STATUS_FIVE)
 
             if existing:
                 existing.otp_code = otp_code
                 existing.is_verified = constant.STATUS_FALSE
                 existing.expires_at = expires_at
-                existing.updated_at = datetime.now()
+                existing.updated_at = now_ist
                 existing.deleted_at = constant.STATUS_NULL
                 otp_obj = existing
             else:
