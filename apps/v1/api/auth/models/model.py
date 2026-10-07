@@ -17,7 +17,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    Double
+    Double,
+    UniqueConstraint,
 )
 
 from apps.v1.api.auth.models.attribute import UserTypeEnum
@@ -94,6 +95,13 @@ class OtpVerification(Base):
     """
 
     __tablename__ = "otp_verification"
+    __table_args__ = (
+        UniqueConstraint(
+            "email",
+            "otp_type",
+            name="uq_otp_verification_email_otp_type",
+        ),
+    )
     id = Column(
         Integer,
         primary_key=constant.STATUS_TRUE,

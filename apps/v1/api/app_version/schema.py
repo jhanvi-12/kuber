@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from apps.v1.api.app_version.models.attribute import AppTypeEnum, PlatformEnum
 from core.utils import constant_variable as constant
@@ -20,13 +20,21 @@ def _validate_semver(value: str) -> str:
     return value.strip()
 
 
+def _normalize_optional_version(value: Optional[str]) -> Optional[str]:
+    """Treat missing or blank FE keys as unset."""
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
 class UpdateAppVersionSchema(BaseModel):
     """Admin payload to create or update version config."""
 
     app_type: AppTypeEnum
     platform: PlatformEnum
-    min_supported_version: str
-    latest_version: str
+    min_supported_version: Optional[str] = None
+    latest_version: Optional[str] = None
     force_update: Optional[bool] = False
     message: Optional[str] = None
     store_url: Optional[str] = None
@@ -50,5 +58,34 @@ class UpdateAppVersionSchema(BaseModel):
 
     @field_validator("min_supported_version", "latest_version")
     @classmethod
-    def validate_version(cls, value: str) -> str:
-        return _validate_semver(value)
+    def validate_version(cls, value: Optional[str]) -> Optional[str]:
+        normalized = _normalize_optional_version(value)
+        if normalized is None:
+            return None
+        return _validate_semver(normalized)
+
+    @model_validator(mode="after")
+    def align_versions_with_force_flag(self):
+        """When force_update is true, backend sets min and latest to the same value.
+
+        Accepts either version key from FE and copies it to the missing one.
+        If both are sent, min_supported_version is used for both.
+        """
+        min_version = self.min_supported_version
+        latest_version = self.latest_version
+
+        if self.force_update:
+            unified = min_version or latest_version
+            if not unified:
+                raise ValueError(
+                    "Provide min_supported_version or latest_version when force_update is true"
+                )
+            self.min_supported_version = unified
+            self.latest_version = unified
+            return self
+
+        if not min_version or not latest_version:
+            raise ValueError(
+                "min_supported_version and latest_version are required when force_update is false"
+            )
+        return self
