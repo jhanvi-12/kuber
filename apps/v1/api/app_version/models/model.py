@@ -42,7 +42,7 @@ class AppVersionConfig(TimestampMixin, Base):
     )
     min_supported_version = Column(
         String(20),
-        nullable=constant.STATUS_FALSE,
+        nullable=constant.STATUS_TRUE,
         doc="Force update if client version is below this (semver)",
     )
     latest_version = Column(
