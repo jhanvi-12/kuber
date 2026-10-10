@@ -56,20 +56,22 @@ class AppVersionService(BaseResponseService):
         """
         try:
             method = AppVersionMethod(AppVersionConfig)
-
             if app_type and platform:
                 config = await method.find_by_app_type_and_platform(
                     db, app_type, platform
                 )
+
                 if not config:
                     return self.response(
                         status.HTTP_404_NOT_FOUND,
                         ErrorMessage.appVersionNotFound,
                     )
+                res = self._serialize_config(config)
+                res.pop("min_supported_version")
                 return self.response(
                     status.HTTP_200_OK,
                     InfoMessage.appVersionRetrieved,
-                    self._serialize_config(config),
+                    res
                 )
 
             configs = await method.find_all_active(db)
@@ -79,6 +81,7 @@ class AppVersionService(BaseResponseService):
                     ErrorMessage.appVersionNotFound,
                 )
             data = [self._serialize_config(item) for item in configs]
+            data.pop("min_suppoerted_version", None)  # FE doesn't need this when returning all configs
             return self.response(
                 status.HTTP_200_OK,
                 InfoMessage.appVersionRetrieved,
@@ -123,7 +126,6 @@ class AppVersionService(BaseResponseService):
             )
 
             if existing:
-                existing.min_supported_version = payload["min_supported_version"]
                 existing.latest_version = payload["latest_version"]
                 existing.force_update = payload.get(
                     "force_update", constant.STATUS_FALSE
@@ -137,16 +139,17 @@ class AppVersionService(BaseResponseService):
                         ErrorMessage.appVersionUpdateFailed,
                     )
                 await db.commit()
+                data = self._serialize_config(existing)
+                data.pop("min_supported_version", None)  # FE doesn't need this when returning a single config
                 return self.response(
                     status.HTTP_200_OK,
                     InfoMessage.appVersionUpdated,
-                    self._serialize_config(existing),
+                    data,
                 )
 
             new_config = AppVersionConfig(
                 app_type=app_type_value,
                 platform=platform_value,
-                min_supported_version=payload["min_supported_version"],
                 latest_version=payload["latest_version"],
                 force_update=payload.get("force_update", constant.STATUS_FALSE),
                 message=payload.get("message"),
@@ -159,10 +162,12 @@ class AppVersionService(BaseResponseService):
                     ErrorMessage.appVersionUpdateFailed,
                 )
             await db.commit()
+            response = self._serialize_config(new_config)
+            response.pop("min_supported_version", None)  # FE doesn't need this when returning a
             return self.response(
                 status.HTTP_201_CREATED,
                 InfoMessage.appVersionUpdated,
-                self._serialize_config(new_config),
+                response,
             )
         except Exception:
             return self.response(

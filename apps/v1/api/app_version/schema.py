@@ -33,7 +33,6 @@ class UpdateAppVersionSchema(BaseModel):
 
     app_type: AppTypeEnum
     platform: PlatformEnum
-    min_supported_version: Optional[str] = None
     latest_version: Optional[str] = None
     force_update: Optional[bool] = False
     message: Optional[str] = None
@@ -47,7 +46,6 @@ class UpdateAppVersionSchema(BaseModel):
             "example": {
                 "app_type": "customer",
                 "platform": "android",
-                "min_supported_version": "1.5.0",
                 "latest_version": "1.6.0",
                 "force_update": False,
                 "message": "Please update the app to continue.",
@@ -56,7 +54,7 @@ class UpdateAppVersionSchema(BaseModel):
             }
         }
 
-    @field_validator("min_supported_version", "latest_version")
+    @field_validator("latest_version")
     @classmethod
     def validate_version(cls, value: Optional[str]) -> Optional[str]:
         normalized = _normalize_optional_version(value)
@@ -71,21 +69,21 @@ class UpdateAppVersionSchema(BaseModel):
         Accepts either version key from FE and copies it to the missing one.
         If both are sent, min_supported_version is used for both.
         """
-        min_version = self.min_supported_version
+        #min_version = self.min_supported_version
         latest_version = self.latest_version
 
         if self.force_update:
-            unified = min_version or latest_version
+            unified = latest_version
             if not unified:
                 raise ValueError(
                     "Provide min_supported_version or latest_version when force_update is true"
                 )
-            self.min_supported_version = unified
+           # self.min_supported_version = unified
             self.latest_version = unified
             return self
 
-        if not min_version or not latest_version:
+        if not latest_version:
             raise ValueError(
-                "min_supported_version and latest_version are required when force_update is false"
+                "latest_version is required when force_update is false"
             )
         return self
